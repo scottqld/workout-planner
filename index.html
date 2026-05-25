@@ -309,7 +309,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <!-- ── Log entry modal ── -->
 <div class="overlay" id="ov-log">
   <div class="modal">
-    <h3>Log workout</h3>
+    <h3 id="log-modal-title">Log workout</h3>
     <div class="field">
       <label>Date</label>
       <input id="ml-date" type="date">
@@ -336,7 +336,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.14'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.15'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -355,6 +355,7 @@ let urls     = [];
 let logData  = [];
 let schedule = {};
 let editTarget = null;
+let logEditIdx = null;
 let schedWeekOffset = 0;
 
 // ── Boot ───────────────────────────────────────────────────────────────────
@@ -1250,6 +1251,7 @@ function renderLog() {
       <span class="log-class">${esc(e['class'])}</span>
       <span class="log-notes">${esc(e.notes || '')}</span>
       <span class="row-actions">
+        <button class="btn-sm" onclick="openLogEdit(${e._idx})">Edit</button>
         <button class="btn-sm btn-del" onclick="delLog(${e._idx})">×</button>
       </span>
     </div>`;
@@ -1259,29 +1261,55 @@ function renderLog() {
 }
 
 function openLogAdd() {
+  logEditIdx = null;
+  document.getElementById('log-modal-title').textContent = 'Log workout';
   document.getElementById('ml-date').value  = new Date().toISOString().slice(0, 10);
   document.getElementById('ml-class').value = '';
   document.getElementById('ml-notes').value = '';
-  // Populate datalist with all known class names
+  populateLogClassList();
+  openOverlay('ov-log');
+  document.getElementById('ml-class').focus();
+}
+
+function openLogEdit(idx) {
+  const e = logData.find(e => e._idx === idx);
+  if (!e) return;
+  logEditIdx = idx;
+  document.getElementById('log-modal-title').textContent = 'Edit workout';
+  document.getElementById('ml-date').value  = e.date  || '';
+  document.getElementById('ml-class').value = e['class'] || '';
+  document.getElementById('ml-notes').value = e.notes || '';
+  populateLogClassList();
+  openOverlay('ov-log');
+  document.getElementById('ml-class').focus();
+}
+
+function populateLogClassList() {
   const nameMap = new Map();
   for (const c of files) { const k=(c.name||'').toLowerCase().trim(); if(k && !nameMap.has(k)) nameMap.set(k,c.name); }
   for (const c of urls)  { const k=(c.name||'').toLowerCase().trim(); if(k) nameMap.set(k,c.name); }
   document.getElementById('ml-class-list').innerHTML =
     Array.from(nameMap.values()).sort().map(n => `<option value="${esc(n)}">`).join('');
-  openOverlay('ov-log');
-  document.getElementById('ml-class').focus();
 }
 
 function submitLogEntry() {
   const date = document.getElementById('ml-date').value;
   const cls  = document.getElementById('ml-class').value.trim();
   if (!date || !cls) { showErr('Date and class are required'); return; }
-  logData.push({ date, 'class': cls, notes: document.getElementById('ml-notes').value.trim(), _idx: logData.length });
+  const notes = document.getElementById('ml-notes').value.trim();
+  if (logEditIdx !== null) {
+    const e = logData.find(e => e._idx === logEditIdx);
+    if (e) { e.date = date; e['class'] = cls; e.notes = notes; delete e.fromSchedule; }
+  } else {
+    logData.push({ date, 'class': cls, notes, _idx: logData.length });
+  }
+  logData.sort((a, b) => (a.date||'').localeCompare(b.date||''));
+  logData.forEach((e, i) => e._idx = i);
   persist();
   closeOverlay('ov-log');
-  render();      // refresh last-done on Classes tab
+  render();
   renderLog();
-  showOk('Logged');
+  showOk(logEditIdx !== null ? 'Updated' : 'Logged');
 }
 
 function delLog(idx) {
