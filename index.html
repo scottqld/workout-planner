@@ -400,7 +400,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.32'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.33'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -1552,7 +1552,7 @@ function renderSchedule() {
         totalMins += c ? durToMins(c.duration) : 0;
       }
     } else {
-      const items = schedule[day] || [];
+      const items = schedWeekOffset <= 1 ? (schedule[day] || []) : [];
       schedCnt += items.length;
       for (const name of items) {
         const c = classMap.get((name||'').toLowerCase().trim());
@@ -1607,8 +1607,8 @@ function renderSchedule() {
         rows = `<div class="sched-empty" style="cursor:pointer" onclick="tiAddStart('${day}',true,'${dateStr}')" title="Click to add a session">+ Add session</div>`;
       }
     } else {
-      // ── Today / future: show weekly template ────────────────────────────
-      const items = schedule[day] || [];
+      // ── Today / future: show weekly template (current week + 1 ahead only) ─
+      const items = schedWeekOffset <= 1 ? (schedule[day] || []) : [];
       rows = items.map((name, idx) => {
         const c     = classMap.get((name||'').toLowerCase().trim());
         const sub   = c?.description || '';
