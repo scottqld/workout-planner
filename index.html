@@ -174,6 +174,8 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
     <div id="tab-classes" style="display:none">
       <div class="toolbar">
         <input id="search" class="search" type="text" placeholder="Search classes…" oninput="render()">
+        <button class="btn btn-ghost" onclick="setAllCats(true)"  title="Expand all">▾ All</button>
+        <button class="btn btn-ghost" onclick="setAllCats(false)" title="Collapse all">▸ All</button>
         <button class="btn btn-ghost" onclick="openImport()">Import</button>
         <button class="btn btn-primary" onclick="openAdd()">+ Add</button>
       </div>
@@ -334,7 +336,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.13'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.14'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -1295,6 +1297,10 @@ function toggleCat(head) {
   const body = head.nextElementSibling, open = body.style.display !== 'none';
   body.style.display = open ? 'none' : '';
   head.querySelector('.cat-toggle').textContent = open ? '▸' : '▾';
+}
+function setAllCats(open) {
+  document.querySelectorAll('#classes-out .cat-body').forEach(b => b.style.display = open ? '' : 'none');
+  document.querySelectorAll('#classes-out .cat-toggle').forEach(t => t.textContent = open ? '▾' : '▸');
 }
 function openOverlay(id)  { document.getElementById(id).classList.add('open'); }
 function closeOverlay(id) { document.getElementById(id).classList.remove('open'); }
