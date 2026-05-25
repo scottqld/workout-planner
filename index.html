@@ -80,6 +80,10 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .col-head .ch-type  { width: 90px;  flex-shrink: 0; white-space: nowrap; }
 .col-head .ch-instr { width: 110px; flex-shrink: 0; white-space: nowrap; }
 .col-head .ch-dur   { width: 46px; text-align: right; flex-shrink: 0; }
+.col-head .ch-link  { width: 36px; flex-shrink: 0; }
+.class-link-btn { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 20px; border-radius: 4px; background: #e8f0fe; color: #1a5cb8; font-size: 12px; text-decoration: none; border: 1px solid #c5d8fb; }
+.class-link-btn:hover { background: #d0e4ff; }
+.class-link-col { width: 36px; flex-shrink: 0; }
 .col-head .ch-tags  { display: none; }
 .col-head .ch-last { width: 90px; text-align: right; flex-shrink: 0; }
 .col-head .ch-act  { width: 72px; flex-shrink: 0; }
@@ -214,8 +218,8 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
       <label>Tags <span style="color:#aaa;font-weight:400">(comma separated)</span></label>
       <input id="m-tags" type="text" placeholder="k, standing, no weights">
     </div>
-    <div class="field" id="field-url" style="display:none">
-      <label>URL</label>
+    <div class="field" id="field-url">
+      <label>URL <span style="color:#aaa;font-weight:400">(YouTube, Google Drive, etc.)</span></label>
       <input id="m-url" type="text" placeholder="https://www.youtube.com/…">
     </div>
     <div class="field">
@@ -318,7 +322,7 @@ const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit',
 const DEV = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 
 const SHEET_DEFS = {
-  files: { key: 'wp-files', cols: ['name','category','duration','classType','instructor','tags','description','notes'] },
+  files: { key: 'wp-files', cols: ['name','category','duration','classType','instructor','tags','url','description','notes'] },
   urls:  { key: 'wp-urls',  cols: ['name','category','duration','classType','instructor','url','description','notes']  },
   log:   { key: 'wp-log',   cols: ['date','class','notes']                                                 },
 };
@@ -653,6 +657,7 @@ function renderCat(cat, items, lastDone) {
       <span class="class-instr">${esc(c.instructor || '')}</span>
       <span class="class-dur">${fmtDur(c.duration)}</span>
       <span class="class-tags">${renderTags(c.tags || '')}</span>
+      <span class="class-link-col">${c.url ? `<a href="${esc(c.url)}" target="_blank" rel="noopener" class="class-link-btn" title="${esc(c.url)}">▶</a>` : ''}</span>
       <span class="class-last ${days===null?'never':days>60?'overdue':''}">${days===null?'never':fmtDate(ld)}</span>
       <span class="row-actions">
         <button class="btn-sm" onclick="openEdit('${c._src}',${c._idx})">Edit</button>
@@ -667,6 +672,7 @@ function renderCat(cat, items, lastDone) {
     <span class="ch-instr">Instructor</span>
     <span class="ch-dur">Duration</span>
     <span class="ch-tags"></span>
+    <span class="ch-link"></span>
     <span class="ch-last">Last done</span>
     <span class="ch-act"></span>
   </div>`;
@@ -732,7 +738,7 @@ function autoFill() {
 function toggleSrcFields() {
   const isLink = document.getElementById('m-src').value === 'link';
   document.getElementById('field-tags').style.display = isLink ? 'none' : '';
-  document.getElementById('field-url').style.display  = isLink ? '' : 'none';
+  // URL field is always visible for both source types
 }
 
 function submitClass() {
@@ -748,7 +754,7 @@ function submitClass() {
     category: document.getElementById('m-cat').value.trim(),
     duration: document.getElementById('m-dur').value.trim(),
     tags: isLink ? '' : document.getElementById('m-tags').value.trim(),
-    url:  isLink ? document.getElementById('m-url').value.trim() : '',
+    url:  document.getElementById('m-url').value.trim(),
     notes: document.getElementById('m-notes').value.trim(),
   };
   // Mark as custom only if user typed something different from what auto-generation produces
