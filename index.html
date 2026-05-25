@@ -75,6 +75,23 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .class-last.never   { color: #aaa; font-style: italic; }
 .class-count  { font-size: 12px; color: #888; width: 36px; text-align: right; flex-shrink: 0; }
 .count-pill   { display: inline-block; font-size: 10px; background: #eaf3ea; color: #4a7c4e; border-radius: 10px; padding: 1px 5px; font-weight: 600; flex-shrink: 0; }
+.trends-card  { background:#fff;border-radius:8px;padding:16px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.08); }
+.trends-title { font-size:12px;font-weight:700;color:#2e6b30;margin:0 0 12px;text-transform:uppercase;letter-spacing:.06em; }
+.stat-grid    { display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px; }
+.stat-box     { background:#f4f9f4;border-radius:6px;padding:12px;text-align:center; }
+.stat-val     { font-size:22px;font-weight:700;color:#2e6b30;line-height:1; }
+.stat-lbl     { font-size:11px;color:#888;margin-top:4px; }
+.trend-bar-row   { display:flex;align-items:center;gap:8px;margin-bottom:6px; }
+.trend-bar-label { font-size:12px;color:#555;width:80px;text-align:right;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.trend-bar-track { flex:1;background:#f0f0f0;border-radius:3px;height:14px;overflow:hidden; }
+.trend-bar-fill  { height:100%;background:#2e6b30;border-radius:3px;transition:width .3s; }
+.trend-bar-val   { font-size:11px;color:#888;width:32px;flex-shrink:0;text-align:right; }
+.heatmap-wrap { overflow-x:auto;padding-bottom:6px; }
+.heatmap      { display:inline-flex;gap:3px; }
+.heatmap-col  { display:flex;flex-direction:column;gap:3px; }
+.heatmap-cell { width:11px;height:11px;border-radius:2px;cursor:default; }
+.heatmap-cell[title]:hover { outline:1px solid #555; }
+.heatmap-month-labels { display:flex;margin-bottom:3px;font-size:10px;color:#aaa; }
 .col-head { display: flex; align-items: center; padding: 4px 14px; gap: 8px; border-bottom: 1px solid #dce8dc; background: #f4f9f4; position: sticky; top: 48px; z-index: 10; }
 .col-head span { font-size: 11px; color: #999; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
 .col-head .ch-name  { flex: 1; min-width: 0; }
@@ -160,9 +177,10 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <div id="screen-app" style="display:none">
   <nav>
     <h1>Workout Planner <span style="font-size:11px;font-weight:400;opacity:0.6">v<span id="app-ver"></span></span></h1>
-    <button class="nav-btn" onclick="showTab('classes')">Classes</button>
-    <button class="nav-btn active" onclick="showTab('schedule')">Timetable</button>
-    <button class="nav-btn" onclick="showTab('log')">Log</button>
+    <button class="nav-btn" data-tab="classes" onclick="showTab('classes')">Classes</button>
+    <button class="nav-btn active" data-tab="schedule" onclick="showTab('schedule')">Timetable</button>
+    <button class="nav-btn" data-tab="log" onclick="showTab('log')">Log</button>
+    <button class="nav-btn" data-tab="trends" onclick="showTab('trends')">Trends</button>
     <div class="nav-sep"></div>
     <button class="nav-btn" onclick="openBackup()" title="Backup / Restore data">⬇ Backup</button>
     <button class="nav-btn" onclick="lock()" title="Lock" style="font-size:15px;padding:6px 8px;opacity:.7">🔒</button>
@@ -191,6 +209,9 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
         <button class="btn btn-primary" onclick="openLogAdd()">+ Log</button>
       </div>
       <div id="log-out"><div class="placeholder">Loading…</div></div>
+    </div>
+    <div id="tab-trends" style="display:none">
+      <div id="trends-out" style="padding:12px 14px;max-width:760px;margin:0 auto"></div>
     </div>
   </main>
 </div>
@@ -370,7 +391,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.21'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.22'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -1104,14 +1125,266 @@ function calcStreak() {
 
 // ── UI ─────────────────────────────────────────────────────────────────────
 function showTab(name) {
-  ['classes','schedule','log'].forEach(t => {
+  ['classes','schedule','log','trends'].forEach(t => {
     document.getElementById('tab-'+t).style.display = t===name?'':'none';
   });
-  document.querySelectorAll('.nav-btn').forEach((b,i) => {
-    b.classList.toggle('active', ['classes','schedule','log'][i]===name);
+  document.querySelectorAll('.nav-btn[data-tab]').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === name);
   });
   if (name === 'log')      renderLog();
   if (name === 'schedule') renderSchedule();
+  if (name === 'trends')   renderTrends();
+}
+
+// ── Trends tab ─────────────────────────────────────────────────────────────
+function renderTrends() {
+  const out = document.getElementById('trends-out');
+  if (!logData.length) {
+    out.innerHTML = '<div class="placeholder">No log entries yet.</div>';
+    return;
+  }
+
+  // ── helpers ────────────────────────────────────────────────────────────
+  const isoD = dt => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+
+  // unique workout-days set
+  const dateset = new Set(logData.map(e => e.date).filter(Boolean));
+
+  // total minutes
+  const totalMins = logData.reduce((s, e) => {
+    const cls = (e['class'] || '').replace(/^\d+\s+/, '');
+    const p = parseName(cls);
+    return s + durToMins(p.dur);
+  }, 0);
+
+  // avg workouts/week — based on span from first to today
+  const sortedDates = [...dateset].sort();
+  const firstDate = sortedDates[0] ? new Date(sortedDates[0]+'T00:00:00') : new Date();
+  const today = new Date(); today.setHours(0,0,0,0);
+  const spanWeeks = Math.max(1, Math.round((today - firstDate) / (7*86400000)));
+  const avgPerWeek = (dateset.size / spanWeeks).toFixed(1);
+
+  // streak
+  const { current: streakCur, best: streakBest } = calcStreak();
+
+  // recent trend — last 28 days vs prior 28 days
+  const ms28 = 28*86400000;
+  const cutRecent = new Date(today - ms28);
+  const cutPrior  = new Date(today - 2*ms28);
+  const countRecent = logData.filter(e => e.date && e.date >= isoD(cutRecent)).length;
+  const countPrior  = logData.filter(e => e.date && e.date >= isoD(cutPrior) && e.date < isoD(cutRecent)).length;
+  const trendDir = countRecent > countPrior ? '▲' : countRecent < countPrior ? '▼' : '—';
+  const trendCol = countRecent > countPrior ? '#2e6b30' : countRecent < countPrior ? '#c0392b' : '#888';
+  const trendDiff = Math.abs(countRecent - countPrior);
+
+  // unique classes
+  const uniqueClasses = new Set(logData.map(e => (e['class']||'').toLowerCase().trim()).filter(Boolean)).size;
+
+  // ── 1. Overview stats ──────────────────────────────────────────────────
+  const trendNote = countPrior === 0
+    ? `${countRecent} workouts last 28 days`
+    : `${trendDir} ${trendDiff} vs prior 28 days`;
+
+  let html = `<div class="trends-card">
+    <p class="trends-title">Overview</p>
+    <div class="stat-grid">
+      <div class="stat-box"><div class="stat-val">${dateset.size}</div><div class="stat-lbl">Workout days</div></div>
+      <div class="stat-box"><div class="stat-val">${logData.length}</div><div class="stat-lbl">Sessions logged</div></div>
+      <div class="stat-box"><div class="stat-val">${totalMins >= 60 ? (totalMins/60).toFixed(1)+'h' : Math.round(totalMins)+'m'}</div><div class="stat-lbl">Total time</div></div>
+      <div class="stat-box"><div class="stat-val">${avgPerWeek}</div><div class="stat-lbl">Days / week avg</div></div>
+      <div class="stat-box"><div class="stat-val">${uniqueClasses}</div><div class="stat-lbl">Unique classes</div></div>
+      <div class="stat-box"><div class="stat-val" style="color:${trendCol}">${trendDir}</div><div class="stat-lbl">${trendNote}</div></div>
+    </div>
+    <div style="margin-top:10px;font-size:12px;color:#666;display:flex;gap:18px">
+      <span>🔥 Current streak: <strong>${streakCur}</strong> day${streakCur!==1?'s':''}</span>
+      <span>🏆 Best streak: <strong>${streakBest}</strong> day${streakBest!==1?'s':''}</span>
+    </div>
+  </div>`;
+
+  // ── 2. 52-week heatmap ─────────────────────────────────────────────────
+  // Build a map: isoDate → count
+  const dayCounts = {};
+  logData.forEach(e => {
+    if (e.date) dayCounts[e.date] = (dayCounts[e.date] || 0) + 1;
+  });
+  const maxDay = Math.max(1, ...Object.values(dayCounts));
+
+  // Start from 52 weeks ago, on the Monday of that week
+  const heatEnd = new Date(today);
+  const heatStart = new Date(today);
+  heatStart.setDate(heatStart.getDate() - 364); // 52 weeks
+  // Align to Monday
+  const dow = heatStart.getDay(); // 0=Sun
+  const backToMon = dow === 0 ? 6 : dow - 1;
+  heatStart.setDate(heatStart.getDate() - backToMon);
+
+  // Build columns (each column = one week Mon-Sun)
+  const cols = [];
+  const monthLabels = []; // { colIdx, label }
+  const cur = new Date(heatStart);
+  while (cur <= heatEnd) {
+    const col = [];
+    for (let d = 0; d < 7; d++) {
+      const ds = isoD(cur);
+      col.push({ ds, cnt: dayCounts[ds] || 0, future: cur > today });
+      cur.setDate(cur.getDate() + 1);
+    }
+    // Month label on first week of each month
+    const firstDs = col[0].ds;
+    const mn = new Date(firstDs+'T00:00:00');
+    if (mn.getDate() <= 7) {
+      monthLabels.push({ colIdx: cols.length, label: mn.toLocaleString('default',{month:'short'}) });
+    }
+    cols.push(col);
+  }
+
+  // Heat colors (0 = empty, 1-4 = intensity)
+  function heatColor(cnt, future) {
+    if (future) return '#f5f5f5';
+    if (cnt === 0) return '#eaeaea';
+    if (cnt === 1) return '#b7d9b9';
+    if (cnt === 2) return '#6db86f';
+    return '#2e6b30';
+  }
+
+  // Build month label row — spaced by column index
+  const totalCols = cols.length;
+  const cellW = 11 + 3; // cell + gap
+  let monthRow = '<div class="heatmap-month-labels" style="margin-left:2px">';
+  let lastEnd = 0;
+  monthLabels.forEach((ml, i) => {
+    const gap = ml.colIdx - lastEnd;
+    if (gap > 0) monthRow += `<span style="display:inline-block;width:${gap*cellW}px"></span>`;
+    monthRow += `<span style="display:inline-block;min-width:28px;font-size:10px;color:#aaa">${ml.label}</span>`;
+    lastEnd = ml.colIdx + 2;
+  });
+  monthRow += '</div>';
+
+  // Day labels on left
+  const dayAbbr = ['M','T','W','T','F','S','S'];
+
+  let heatHtml = '';
+  cols.forEach(col => {
+    heatHtml += '<div class="heatmap-col">';
+    col.forEach(cell => {
+      const title = cell.future ? '' : `${cell.ds}: ${cell.cnt} session${cell.cnt!==1?'s':''}`;
+      heatHtml += `<div class="heatmap-cell" style="background:${heatColor(cell.cnt, cell.future)}" title="${title}"></div>`;
+    });
+    heatHtml += '</div>';
+  });
+
+  html += `<div class="trends-card">
+    <p class="trends-title">52-Week Activity</p>
+    <div style="display:flex;gap:6px;align-items:flex-start">
+      <div style="display:flex;flex-direction:column;gap:3px;padding-top:14px">
+        ${dayAbbr.map(d=>`<div style="width:9px;font-size:9px;color:#bbb;line-height:11px;text-align:right">${d}</div>`).join('')}
+      </div>
+      <div style="flex:1;min-width:0">
+        ${monthRow}
+        <div class="heatmap-wrap"><div class="heatmap">${heatHtml}</div></div>
+      </div>
+    </div>
+    <div style="margin-top:8px;display:flex;align-items:center;gap:4px;font-size:10px;color:#aaa">
+      Less
+      ${[0,1,2,3].map(n=>`<div style="width:10px;height:10px;border-radius:2px;background:${heatColor(n,false)}"></div>`).join('')}
+      More
+    </div>
+  </div>`;
+
+  // ── 3. Monthly workouts (last 13 months) ──────────────────────────────
+  const monthlyCounts = {};
+  logData.forEach(e => {
+    if (!e.date) return;
+    const ym = e.date.slice(0,7); // YYYY-MM
+    monthlyCounts[ym] = (monthlyCounts[ym] || 0) + 1;
+  });
+  const months13 = [];
+  for (let i = 12; i >= 0; i--) {
+    const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+    const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const lbl = d.toLocaleString('default',{month:'short'});
+    months13.push({ ym, lbl, cnt: monthlyCounts[ym] || 0 });
+  }
+  const maxMonth = Math.max(1, ...months13.map(m=>m.cnt));
+
+  let monthBars = months13.map(m => {
+    const pct = Math.round(m.cnt / maxMonth * 100);
+    const isThisMonth = m.ym === isoD(today).slice(0,7);
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex:1;min-width:0">
+      <div style="font-size:10px;color:#888">${m.cnt||''}</div>
+      <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;width:100%">
+        <div style="background:${isThisMonth?'#5a9e5c':'#2e6b30'};border-radius:3px 3px 0 0;height:${pct}%;min-height:${m.cnt?3:0}px"></div>
+      </div>
+      <div style="font-size:9px;color:#aaa;white-space:nowrap">${m.lbl}</div>
+    </div>`;
+  }).join('');
+
+  html += `<div class="trends-card">
+    <p class="trends-title">Monthly Sessions (last 13 months)</p>
+    <div style="display:flex;gap:3px;height:100px;align-items:stretch">${monthBars}</div>
+  </div>`;
+
+  // ── 4. Day of week ─────────────────────────────────────────────────────
+  const dowCounts = [0,0,0,0,0,0,0]; // Mon=0 … Sun=6
+  logData.forEach(e => {
+    if (!e.date) return;
+    const d = new Date(e.date+'T00:00:00');
+    const wd = d.getDay(); // 0=Sun
+    dowCounts[wd === 0 ? 6 : wd - 1]++;
+  });
+  const dowLabels = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const maxDow = Math.max(1, ...dowCounts);
+
+  html += `<div class="trends-card">
+    <p class="trends-title">Day of Week</p>
+    ${dowLabels.map((lbl,i) => `
+      <div class="trend-bar-row">
+        <span class="trend-bar-label">${lbl}</span>
+        <div class="trend-bar-track"><div class="trend-bar-fill" style="width:${Math.round(dowCounts[i]/maxDow*100)}%"></div></div>
+        <span class="trend-bar-val">${dowCounts[i]}</span>
+      </div>`).join('')}
+  </div>`;
+
+  // ── 5. Category breakdown ──────────────────────────────────────────────
+  const catCounts = {};
+  logData.forEach(e => {
+    const cls = (e['class'] || '').replace(/^\d+\s+/,'');
+    const cat = parseName(cls).cat || 'other';
+    catCounts[cat] = (catCounts[cat] || 0) + 1;
+  });
+  const catSorted = Object.entries(catCounts).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const maxCat = Math.max(1, catSorted[0]?.[1] || 1);
+
+  html += `<div class="trends-card">
+    <p class="trends-title">Category Breakdown</p>
+    ${catSorted.map(([cat, cnt]) => `
+      <div class="trend-bar-row">
+        <span class="trend-bar-label">${cat}</span>
+        <div class="trend-bar-track"><div class="trend-bar-fill" style="width:${Math.round(cnt/maxCat*100)}%"></div></div>
+        <span class="trend-bar-val">${cnt}</span>
+      </div>`).join('')}
+  </div>`;
+
+  // ── 6. Top 10 classes ─────────────────────────────────────────────────
+  const classCounts = {};
+  logData.forEach(e => {
+    const k = (e['class']||'').trim().toLowerCase();
+    if (k) classCounts[k] = (classCounts[k]||0) + 1;
+  });
+  const top10 = Object.entries(classCounts).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const maxTop = Math.max(1, top10[0]?.[1] || 1);
+
+  html += `<div class="trends-card">
+    <p class="trends-title">Top Classes</p>
+    ${top10.map(([cls, cnt], i) => `
+      <div class="trend-bar-row">
+        <span class="trend-bar-label" title="${cls}" style="font-size:11px">${i+1}. ${cls}</span>
+        <div class="trend-bar-track"><div class="trend-bar-fill" style="width:${Math.round(cnt/maxTop*100)}%"></div></div>
+        <span class="trend-bar-val">${cnt}×</span>
+      </div>`).join('')}
+  </div>`;
+
+  out.innerHTML = html;
 }
 
 // ── Schedule tab ───────────────────────────────────────────────────────────
