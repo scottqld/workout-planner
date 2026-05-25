@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -432,7 +432,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.39'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.40'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -1811,7 +1811,7 @@ function renderSchedule() {
         const meta  = [c?.classType, c?.instructor].filter(Boolean).join(' · ');
         const dur   = c ? fmtDur(c.duration) : '';
         const count = classCounts[name] || 0;
-        return `<div class="sched-item ti-editable" id="ti-sched-${day}-${idx}" data-date="${dateStr}" onclick="tiStartEdit('sched','${day}',${idx})">
+        return `<div class="sched-item ti-editable" id="ti-sched-${day}-${idx}" data-date="${dateStr}" onclick="openDayEdit('${day}',false,'${dateStr}')">
           <span class="sched-name"><span style="display:block">${esc(name)}</span>${sub ? `<span style="display:block;font-size:11px;color:#aaa;font-weight:400;margin-top:1px">${esc(sub)}</span>` : ''}</span>
           ${count > 0 ? `<span class="count-pill" title="Done ${count} time${count!==1?'s':''}">${count}×</span>` : ''}
           ${meta ? `<span class="sched-meta">${esc(meta)}</span>` : ''}
