@@ -349,6 +349,7 @@ let urls     = [];
 let logData  = [];
 let schedule = {};
 let editTarget = null;
+let schedWeekOffset = 0;
 
 // ── Boot ───────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -968,13 +969,54 @@ function buildClassMap() {
   return m;
 }
 
+function isoWeekNumber(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return { week: Math.ceil((((d - yearStart) / 86400000) + 1) / 7), year: d.getUTCFullYear() };
+}
+
+function weekDates(offset) {
+  const today = new Date();
+  const dow   = today.getDay();                            // 0=Sun
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1) + offset * 7);
+  monday.setHours(0, 0, 0, 0);
+  const map = {};
+  DAYS.forEach((d, i) => {
+    const dt = new Date(monday);
+    dt.setDate(monday.getDate() + i);
+    map[d] = dt;
+  });
+  return { monday, map };
+}
+
+function isToday(dt) {
+  const t = new Date();
+  return dt.getFullYear() === t.getFullYear() && dt.getMonth() === t.getMonth() && dt.getDate() === t.getDate();
+}
+
 function renderSchedule() {
+  const { monday, map: datemap } = weekDates(schedWeekOffset);
+  const { week, year } = isoWeekNumber(monday);
   const classMap = buildClassMap();
   const allNames = [...classMap.keys()].sort();
+  const dayFmt   = dt => dt.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+  const atToday  = schedWeekOffset === 0;
 
-  const html = DAYS.map(day => {
+  const nav = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+    <button class="btn btn-ghost" style="font-size:13px;padding:6px 12px" onclick="schedWeekOffset--;renderSchedule()">‹ Prev</button>
+    <span style="flex:1;text-align:center;font-weight:600;font-size:15px;color:#2e6b30">Week ${week} &middot; ${year}</span>
+    ${atToday ? '<span style="min-width:68px"></span>' : '<button class="btn btn-ghost" style="font-size:12px;padding:6px 10px;min-width:68px" onclick="schedWeekOffset=0;renderSchedule()">This week</button>'}
+    <button class="btn btn-ghost" style="font-size:13px;padding:6px 12px" onclick="schedWeekOffset++;renderSchedule()">Next ›</button>
+  </div>`;
+
+  const cards = DAYS.map(day => {
+    const dt    = datemap[day];
+    const today = isToday(dt);
     const items = (schedule[day] || []);
-    const rows  = items.map((name, idx) => {
+
+    const rows = items.map((name, idx) => {
       const c    = classMap.get((name||'').toLowerCase().trim());
       const desc = c?.description || name;
       const meta = [c?.classType, c?.instructor].filter(Boolean).join(' · ');
@@ -996,10 +1038,13 @@ function renderSchedule() {
     }).join('');
 
     const opts = allNames.map(n => `<option value="${esc(n)}">`).join('');
+    const headBg = today ? 'background:#d4edda' : '';
+    const todayBadge = today ? '<span style="font-size:11px;background:#2e6b30;color:#fff;border-radius:4px;padding:1px 6px;margin-left:8px">Today</span>' : '';
 
     return `<div class="cat-card" style="margin-bottom:10px">
-      <div class="sched-day-head">
-        <span class="sched-day-name">${DAY_LABELS[day]}</span>
+      <div class="sched-day-head" style="${headBg}">
+        <span class="sched-day-name">${DAY_LABELS[day]}${todayBadge}</span>
+        <span style="font-size:12px;color:#666;margin-right:10px">${dayFmt(dt)}</span>
         <button class="btn btn-ghost" style="font-size:12px;padding:5px 10px" onclick="showSchedAdd('${day}')">+ Add</button>
       </div>
       <div>
@@ -1016,7 +1061,7 @@ function renderSchedule() {
     </div>`;
   }).join('');
 
-  document.getElementById('schedule-out').innerHTML = html;
+  document.getElementById('schedule-out').innerHTML = nav + cards;
 }
 
 function showSchedAdd(day) {
