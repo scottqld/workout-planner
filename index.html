@@ -127,11 +127,6 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 /* ── Schedule tab ── */
 .sched-day-head { display: flex; align-items: center; padding: 10px 14px; background: #eaf3ea; }
 .sched-day-name { font-weight: 600; color: #2e6b30; flex: 1; font-size: 14px; }
-.sched-item { display: flex; align-items: center; padding: 7px 14px; border-bottom: 1px solid #f2f4f2; gap: 8px; }
-.sched-item:last-child { border-bottom: none; }
-.sched-item:hover { background: #fafcfa; }
-.sched-item.ti-editable { cursor: pointer; }
-.sched-item.ti-editable:hover { background: #eef7ee !important; }
 .ti-picker  { position:fixed;background:#fff;border:1px solid #bcd;border-radius:6px;max-height:260px;overflow-y:auto;z-index:9999;box-shadow:0 4px 14px rgba(0,0,0,.14);display:none; }
 .ti-pick-item { display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;border-bottom:1px solid #f5f5f5;user-select:none; }
 .ti-pick-item:last-child { border-bottom:none; }
@@ -156,7 +151,25 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .last-mid    { background: #fff3cd; color: #7a5800; }
 .last-stale  { background: #f0f0f0; color: #777; }
 .last-new    { background: #ede8f5; color: #5a3a8a; }
-.sched-empty { padding: 9px 14px; font-size: 12px; color: #bbb; font-style: italic; }
+/* Compact inline timetable rows */
+.sched-row        { display:flex;align-items:center;padding:5px 12px;border-bottom:1px solid #f0f2f0;gap:8px;min-height:36px; }
+.sched-row:hover  { background:#fafcfa; }
+.sched-row.row-today { background:#edf7ed; }
+.sched-row-day    { width:64px;flex-shrink:0; }
+.sched-row-name   { font-size:12px;font-weight:700;color:#2e6b30;display:block;line-height:1.3; }
+.sched-row-name.past { color:#aaa; }
+.sched-row-date   { font-size:10px;color:#bbb;display:block; }
+.sched-row-chips  { flex:1;display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-width:0; }
+.sched-chip       { display:inline-flex;align-items:center;gap:4px;padding:3px 5px 3px 8px;border-radius:14px;border:1px solid #d4e8d4;background:#f4f9f4;font-size:12px;cursor:pointer;max-width:100%; }
+.sched-chip:hover { background:#dff0df;border-color:#9ccb9c; }
+.sched-chip.done  { border-color:#2e6b30;background:#eaf5ea; }
+.sched-chip-name  { overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px; }
+.sched-chip-dur   { font-size:11px;color:#888;flex-shrink:0; }
+.sched-chip-del   { background:none;border:none;color:#c00;font-size:13px;padding:0 1px;line-height:1;cursor:pointer;flex-shrink:0;opacity:.6; }
+.sched-chip-del:hover { opacity:1; }
+.sched-rest       { font-size:12px;color:#ccc;font-style:italic; }
+.sched-add-btn    { flex-shrink:0;background:none;border:1px solid #c8dcc8;color:#4a8a4a;border-radius:50%;width:22px;height:22px;font-size:16px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0; }
+.sched-add-btn:hover { background:#eaf3ea;border-color:#2e6b30; }
 .sched-add-row { display: none; align-items: center; gap: 8px; padding: 8px 14px; border-top: 1px solid #f0f0f0; }
 .sched-add-row.open { display: flex; }
 
@@ -440,7 +453,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.42'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.43'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -1788,72 +1801,57 @@ function renderSchedule() {
   </div>${summaryLine}${autoGenBtn}`;
 
   const cards = DAYS.map(day => {
-    const dt     = datemap[day];
-    const today  = isToday(dt);
-    const isPast = dt < todayMid;
+    const dt      = datemap[day];
+    const today   = isToday(dt);
+    const isPast  = dt < todayMid;
     const dateStr = isoDate(dt);
+    const DAY_SHORT = { mon:'Mon',tue:'Tue',wed:'Wed',thu:'Thu',fri:'Fri',sat:'Sat',sun:'Sun' };
 
-    let rows;
+    let chips;
 
     if (isPast) {
-      // ── Past day: logged entries first; fall back to template ────────────
       const logEntries = dateLogMap.get(dateStr) || [];
       if (logEntries.length > 0) {
-        rows = logEntries.map(entry => {
-          const name  = entry.class || '';
-          const c     = classMap.get(name.toLowerCase().trim());
-          const dur   = c ? fmtDur(c.duration) : '';
-          const count = classCounts[name] || 0;
-          const sub   = c?.description || '';
-          return `<div class="sched-item ti-editable" id="ti-log-${entry._idx}" onclick="tiStartEdit('log','${day}',${entry._idx})">
-            <span style="color:#2e6b30;font-size:13px;flex-shrink:0;margin-right:2px">✓</span>
-            <span class="sched-name"><span style="display:block">${esc(name)}</span>${sub ? `<span style="display:block;font-size:11px;color:#aaa;font-weight:400;margin-top:1px">${esc(sub)}</span>` : ''}</span>
-            ${count > 0 ? `<span class="count-pill" title="Done ${count} time${count!==1?'s':''}">${count}×</span>` : ''}
-            ${entry.notes ? `<span class="sched-meta">${esc(entry.notes)}</span>` : ''}
-            ${c ? durBadge(c.duration) : ''}
-            <span class="sched-dur">${dur}</span>
-            ${schedLinkBtn(c, name)}
-            <button class="btn-sm btn-del" onclick="event.stopPropagation();tiDelete('log','${day}',${entry._idx})">×</button>
-          </div>`;
+        chips = logEntries.map(entry => {
+          const name = entry.class || '';
+          const c    = classMap.get(name.toLowerCase().trim());
+          const dur  = c ? `<span class="sched-chip-dur">${fmtDur(c.duration)}</span>` : '';
+          const db   = c ? durBadge(c.duration) : '';
+          return `<span class="sched-chip done" onclick="openDayEdit('${day}',true,'${dateStr}')">
+            <span style="color:#2e6b30;font-size:10px;flex-shrink:0">✓</span>
+            <span class="sched-chip-name">${esc(name)}</span>${dur}${db}
+            <button class="sched-chip-del" onclick="event.stopPropagation();tiDelete('log','${day}',${entry._idx})">×</button>
+          </span>`;
         }).join('');
       } else {
-        rows = `<div class="sched-empty" style="cursor:pointer" onclick="openDayEdit('${day}',true,'${dateStr}')" title="Click to add a session">+ Add session</div>`;
+        chips = `<span class="sched-rest">rest</span>`;
       }
     } else {
-      // ── Today / future: show per-date override if set, else weekly template ─
       const dayItems = dateOverrides.hasOwnProperty(dateStr) ? dateOverrides[dateStr] : (schedule[day] || []);
-      const items = schedWeekOffset <= 1 ? dayItems : [];
-      rows = items.map((name, idx) => {
-        const c     = classMap.get((name||'').toLowerCase().trim());
-        const sub   = c?.description || '';
-        const meta  = [c?.classType, c?.instructor].filter(Boolean).join(' · ');
-        const dur   = c ? fmtDur(c.duration) : '';
-        const count = classCounts[name] || 0;
-        return `<div class="sched-item ti-editable" id="ti-sched-${day}-${idx}" data-date="${dateStr}" onclick="openDayEdit('${day}',false,'${dateStr}')">
-          <span class="sched-name"><span style="display:block">${esc(name)}</span>${sub ? `<span style="display:block;font-size:11px;color:#aaa;font-weight:400;margin-top:1px">${esc(sub)}</span>` : ''}</span>
-          ${count > 0 ? `<span class="count-pill" title="Done ${count} time${count!==1?'s':''}">${count}×</span>` : ''}
-          ${meta ? `<span class="sched-meta">${esc(meta)}</span>` : ''}
-          ${c ? durBadge(c.duration) : ''}
-          <span class="sched-dur">${dur}</span>
-          ${schedLinkBtn(c, name)}
-          <button class="btn-sm btn-del" onclick="event.stopPropagation();tiDeleteDateEntry('${dateStr}','${day}',${idx})">×</button>
-        </div>`;
-      }).join('') || `<div class="sched-empty" style="cursor:pointer" onclick="openDayEdit('${day}',false,'${dateStr}')" title="Click to add a class">+ Add class</div>`;
+      const items    = schedWeekOffset <= 1 ? dayItems : [];
+      if (items.length > 0) {
+        chips = items.map((name, idx) => {
+          const c   = classMap.get((name||'').toLowerCase().trim());
+          const dur = c ? `<span class="sched-chip-dur">${fmtDur(c.duration)}</span>` : '';
+          const db  = c ? durBadge(c.duration) : '';
+          return `<span class="sched-chip" onclick="openDayEdit('${day}',false,'${dateStr}')">
+            <span class="sched-chip-name">${esc(name)}</span>${dur}${db}
+            <button class="sched-chip-del" onclick="event.stopPropagation();tiDeleteDateEntry('${dateStr}','${day}',${idx})">×</button>
+          </span>`;
+        }).join('');
+      } else {
+        chips = `<span class="sched-rest">rest</span>`;
+      }
     }
 
-    const headBg     = today ? 'background:#d4edda' : isPast ? 'background:#f5f5f5' : '';
-    const dayColor   = isPast ? 'color:#999' : '';
-    const todayBadge = today ? '<span style="font-size:11px;background:#2e6b30;color:#fff;border-radius:4px;padding:1px 6px;margin-left:8px">Today</span>' : '';
-    const addBtn     = `<button class="btn btn-ghost" style="font-size:15px;padding:3px 10px;line-height:1" title="Add class" onclick="openDayEdit('${day}',${isPast},'${dateStr}')">+</button>`;
-
-    return `<div class="cat-card" style="margin-bottom:10px">
-      <div class="sched-day-head" style="${headBg}">
-        <span class="sched-day-name" style="${dayColor}">${DAY_LABELS[day]}${todayBadge}</span>
-        <span style="font-size:12px;color:#999;margin-right:10px">${dayFmt(dt)}</span>
-        ${addBtn}
+    const todayDot = today ? ' <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#2e6b30;vertical-align:middle;margin-left:3px"></span>' : '';
+    return `<div class="sched-row${today ? ' row-today' : ''}">
+      <div class="sched-row-day">
+        <span class="sched-row-name${isPast && !today ? ' past' : ''}">${DAY_SHORT[day]}${todayDot}</span>
+        <span class="sched-row-date">${dayFmt(dt)}</span>
       </div>
-      <div>${rows}</div>
-      <div id="ti-add-${day}"></div>
+      <div class="sched-row-chips">${chips}</div>
+      <button class="sched-add-btn" title="Edit day" onclick="openDayEdit('${day}',${isPast},'${dateStr}')">+</button>
     </div>`;
   }).join('');
 
@@ -1869,7 +1867,8 @@ function renderSchedule() {
       </div>`
     : '';
 
-  document.getElementById('schedule-out').innerHTML = streakHtml + nav + cards;
+  const cardsHtml = `<div class="cat-card" style="overflow:hidden">${cards}</div>`;
+  document.getElementById('schedule-out').innerHTML = streakHtml + nav + cardsHtml;
 }
 
 // ── Inline timetable editing ───────────────────────────────────────────────
