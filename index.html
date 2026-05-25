@@ -192,6 +192,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
     <button class="nav-btn" data-tab="trends" onclick="showTab('trends')">Trends</button>
     <div class="nav-sep"></div>
     <button class="nav-btn" onclick="openBackup()" title="Backup / Restore data">⬇ Backup</button>
+    <button class="nav-btn" id="sync-nav-btn" onclick="openSync()" title="Cross-device sync">☁ Sync<span id="sync-dot" style="display:none;margin-left:4px;font-size:10px"></span></button>
     <button class="nav-btn" onclick="lock()" title="Lock" style="font-size:15px;padding:6px 8px;opacity:.7">🔒</button>
   </nav>
   <main>
@@ -314,6 +315,42 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
   </div>
 </div>
 
+<!-- ── Sync modal ── -->
+<div class="overlay" id="ov-sync">
+  <div class="modal">
+    <h3>☁ Cross-device Sync</h3>
+    <p style="font-size:13px;color:#555;margin-bottom:4px">
+      Syncs your data to Firebase Realtime Database so any device sees the same workouts, schedule, and history.
+    </p>
+    <p style="font-size:12px;color:#888;margin-bottom:16px">
+      Free setup: <a href="https://console.firebase.google.com/" target="_blank" style="color:#2e6b30">console.firebase.google.com</a>
+      → New project → Build → Realtime Database → Create → Rules → set <code style="font-size:11px;background:#f4f4f4;padding:1px 4px;border-radius:3px">".read":true,".write":true</code> → copy the database URL below.
+    </p>
+    <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:16px">
+      <label style="font-size:13px;font-weight:600;color:#333">
+        Firebase Database URL
+        <input id="sync-url-input" type="url" placeholder="https://your-project-default-rtdb.firebaseio.com"
+          style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid #cdd;border-radius:6px;font-size:13px;font-weight:400">
+      </label>
+      <label style="font-size:13px;font-weight:600;color:#333">
+        Sync Key <span style="font-size:11px;font-weight:400;color:#888">(private passphrase — use the same key on every device)</span>
+        <input id="sync-key-input" type="text" placeholder="e.g. my-workout-key-2024"
+          style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid #cdd;border-radius:6px;font-size:13px;font-weight:400">
+      </label>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <button class="btn btn-primary" onclick="saveSyncSettings()">Save &amp; Sync Now</button>
+      <button class="btn btn-ghost" onclick="syncPull(true)">Pull from cloud</button>
+      <button class="btn btn-ghost" onclick="syncPush(true)">Push to cloud</button>
+    </div>
+    <div id="sync-msg" style="font-size:13px;min-height:18px;color:#2e6b30"></div>
+    <div class="modal-actions" style="margin-top:16px">
+      <button class="btn btn-ghost" onclick="closeOverlay('ov-sync')">Close</button>
+      <button class="btn" style="background:#fde8e8;color:#8b1c1c" onclick="clearSyncConfig()">Remove sync</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Backup / Restore modal ── -->
 <div class="overlay" id="ov-backup">
   <div class="modal">
@@ -400,7 +437,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.36'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.37'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -426,6 +463,11 @@ let daySuggestIdx  = 0;
 let daySuggestPool = [];
 let schedWeekOffset = 0;
 
+// ── Sync state ─────────────────────────────────────────────────────────────
+let syncUrl = '';   // Firebase Realtime DB base URL
+let syncKey = '';   // User's private sync-key (path component)
+let _syncPushTimer = null;
+
 // ── Boot ───────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   if (DEV || localStorage.getItem('wp-authed') === '1') {
@@ -441,10 +483,12 @@ function startApp() {
   document.getElementById('screen-pin').style.display = 'none';
   document.getElementById('screen-app').style.display = '';
   document.getElementById('app-ver').textContent = APP_VERSION;
+  loadSyncConfig();
   loadFromStorage();
   removeRetroScheduleEntries();
   render();
   showTab('schedule');
+  syncPull(false);  // async — silently refreshes from cloud if configured
 }
 
 // ── PIN ────────────────────────────────────────────────────────────────────
@@ -651,7 +695,6 @@ function loadFromStorage() {
     localStorage.setItem('wp-schedule', JSON.stringify(schedule));
   }
   try { dateOverrides = JSON.parse(localStorage.getItem('wp-overrides') || '{}'); } catch { dateOverrides = {}; }
-  try { rotation     = JSON.parse(localStorage.getItem('wp-rotation')  || '{}'); } catch { rotation     = {}; }
 }
 
 function persist() {
@@ -659,16 +702,154 @@ function persist() {
   localStorage.setItem('wp-files', JSON.stringify(files.map(strip)));
   localStorage.setItem('wp-urls',  JSON.stringify(urls.map(strip)));
   localStorage.setItem('wp-log',   JSON.stringify(logData.map(strip)));
+  scheduleSyncPush();
 }
 
 function persistSchedule() {
   localStorage.setItem('wp-schedule', JSON.stringify(schedule));
+  scheduleSyncPush();
 }
 
 function persistOverrides() {
   localStorage.setItem('wp-overrides', JSON.stringify(dateOverrides));
+  scheduleSyncPush();
 }
 
+
+// ── Cloud Sync (Firebase Realtime Database REST) ────────────────────────────
+function loadSyncConfig() {
+  try {
+    const cfg = JSON.parse(localStorage.getItem('wp-sync') || '{}');
+    syncUrl = (cfg.url || '').trim().replace(/\/$/, '');
+    syncKey = (cfg.key || '').trim();
+  } catch { syncUrl = ''; syncKey = ''; }
+  updateSyncDot();
+}
+
+function syncEndpoint() {
+  if (!syncUrl || !syncKey) return null;
+  return `${syncUrl}/wp/${encodeURIComponent(syncKey)}.json`;
+}
+
+async function syncPull(showFeedback) {
+  const ep = syncEndpoint();
+  if (!ep) return;
+  setSyncDot('syncing');
+  const msg = document.getElementById('sync-msg');
+  if (msg && showFeedback) msg.textContent = 'Pulling…';
+  try {
+    const res = await fetch(ep);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (!data) {
+      setSyncDot('ok');
+      if (msg && showFeedback) msg.textContent = 'Cloud is empty — nothing to pull yet.';
+      return;
+    }
+    // Apply remote data and refresh local cache
+    const applyF = (arr, src) => arr.map((o, i) => applyAutoDesc({ description: '', descCustom: false, classType: '', instructor: '', ...o, _idx: i, _src: src }));
+    if (Array.isArray(data.files))    { files         = applyF(data.files, 'drive'); localStorage.setItem('wp-files',    JSON.stringify(data.files)); }
+    if (Array.isArray(data.urls))     { urls          = applyF(data.urls, 'link');   localStorage.setItem('wp-urls',     JSON.stringify(data.urls)); }
+    if (Array.isArray(data.log))      { logData       = data.log.map((o, i) => ({ ...o, _idx: i })); localStorage.setItem('wp-log',      JSON.stringify(data.log)); }
+    if (data.schedule  != null)       { schedule      = data.schedule;               localStorage.setItem('wp-schedule',  JSON.stringify(data.schedule)); }
+    if (data.overrides != null)       { dateOverrides = data.overrides;              localStorage.setItem('wp-overrides', JSON.stringify(data.overrides)); }
+    setSyncDot('ok');
+    if (msg && showFeedback) msg.textContent = 'Pulled — data updated.';
+    render();
+  } catch (e) {
+    console.warn('Sync pull failed:', e);
+    setSyncDot('error');
+    if (msg && showFeedback) msg.textContent = 'Pull failed: ' + e.message;
+  }
+}
+
+function scheduleSyncPush() {
+  clearTimeout(_syncPushTimer);
+  _syncPushTimer = setTimeout(() => syncPush(false), 2000);
+}
+
+async function syncPush(showFeedback) {
+  const ep = syncEndpoint();
+  if (!ep) return;
+  clearTimeout(_syncPushTimer);
+  setSyncDot('syncing');
+  const msg = document.getElementById('sync-msg');
+  if (msg && showFeedback) msg.textContent = 'Pushing…';
+  try {
+    const strip = ({ _idx, _src, ...rest }) => rest;
+    const payload = {
+      files:     files.map(strip),
+      urls:      urls.map(strip),
+      log:       logData.map(strip),
+      schedule,
+      overrides: dateOverrides,
+      _pushedAt: new Date().toISOString()
+    };
+    const res = await fetch(ep, {
+      method:  'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    setSyncDot('ok');
+    if (msg && showFeedback) msg.textContent = 'Pushed — cloud updated.';
+  } catch (e) {
+    console.warn('Sync push failed:', e);
+    setSyncDot('error');
+    if (msg && showFeedback) msg.textContent = 'Push failed: ' + e.message;
+  }
+}
+
+function setSyncDot(status) {
+  const dot = document.getElementById('sync-dot');
+  if (!dot) return;
+  if (!syncUrl || !syncKey) { dot.style.display = 'none'; return; }
+  dot.style.display = '';
+  if (status === 'syncing') { dot.textContent = '↻'; dot.style.color = 'rgba(255,255,255,.8)'; dot.title = 'Syncing…'; }
+  else if (status === 'ok') { dot.textContent = '✓'; dot.style.color = 'rgba(200,255,200,.8)'; dot.title = 'Synced'; }
+  else                      { dot.textContent = '⚠'; dot.style.color = '#ffcc44';               dot.title = 'Sync error — check settings'; }
+}
+
+function updateSyncDot() {
+  const dot = document.getElementById('sync-dot');
+  if (!dot) return;
+  dot.style.display = (syncUrl && syncKey) ? '' : 'none';
+  if (syncUrl && syncKey) { dot.textContent = '✓'; dot.style.color = 'rgba(200,255,200,.8)'; dot.title = 'Sync configured'; }
+}
+
+function openSync() {
+  document.getElementById('sync-url-input').value = syncUrl;
+  document.getElementById('sync-key-input').value = syncKey;
+  document.getElementById('sync-msg').textContent = '';
+  openOverlay('ov-sync');
+}
+
+function saveSyncSettings() {
+  const url = document.getElementById('sync-url-input').value.trim().replace(/\/$/, '');
+  const key = document.getElementById('sync-key-input').value.trim();
+  if (!url || !key) {
+    document.getElementById('sync-msg').textContent = 'Please fill in both fields.';
+    document.getElementById('sync-msg').style.color = '#c0392b';
+    return;
+  }
+  syncUrl = url;
+  syncKey = key;
+  localStorage.setItem('wp-sync', JSON.stringify({ url, key }));
+  updateSyncDot();
+  document.getElementById('sync-msg').style.color = '#2e6b30';
+  syncPush(true);
+}
+
+function clearSyncConfig() {
+  if (!confirm('Remove sync configuration? Your local data is unaffected.')) return;
+  syncUrl = ''; syncKey = '';
+  localStorage.removeItem('wp-sync');
+  updateSyncDot();
+  document.getElementById('sync-url-input').value = '';
+  document.getElementById('sync-key-input').value = '';
+  document.getElementById('sync-msg').textContent = 'Sync removed.';
+  document.getElementById('sync-msg').style.color = '#888';
+}
 
 // One-time repair: remove schedule-generated entries that were retroactively
 // written into the log before this feature was scoped to current-week only.
@@ -2269,7 +2450,7 @@ function setAllCats(open) {
 function openOverlay(id)  { document.getElementById(id).classList.add('open'); }
 function closeOverlay(id) { document.getElementById(id).classList.remove('open'); }
 document.addEventListener('click', e => {
-  ['ov-class','ov-import','ov-backup','ov-log','ov-day-edit'].forEach(id => {
+  ['ov-class','ov-import','ov-backup','ov-log','ov-day-edit','ov-sync'].forEach(id => {
     if (e.target === document.getElementById(id)) closeOverlay(id);
   });
 });
