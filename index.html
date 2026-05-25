@@ -979,10 +979,18 @@ function renderSchedule() {
       const desc = c?.description || name;
       const meta = [c?.classType, c?.instructor].filter(Boolean).join(' · ');
       const dur  = c ? fmtDur(c.duration) : '';
+      let linkBtn = '';
+      if (c?.url) {
+        linkBtn = `<a href="${esc(c.url)}" target="_blank" class="class-link-btn" title="Play">▶</a>`;
+      } else if (c?._src === 'drive') {
+        const q = encodeURIComponent(c.name);
+        linkBtn = `<a href="https://drive.google.com/drive/search?q=${q}&driveId=${DRIVE_FOLDER_ID}" target="_blank" class="class-link-btn drive" title="Find in Drive">📁</a>`;
+      }
       return `<div class="sched-item">
         <span class="sched-name" title="${esc(name)}">${esc(desc)}</span>
         ${meta ? `<span class="sched-meta">${esc(meta)}</span>` : ''}
         <span class="sched-dur">${dur}</span>
+        ${linkBtn}
         <button class="btn-sm btn-del" onclick="removeScheduleItem('${day}',${idx})">×</button>
       </div>`;
     }).join('');
