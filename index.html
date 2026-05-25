@@ -391,7 +391,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.24'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.25'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -1227,6 +1227,26 @@ function renderTrends() {
   // unique classes
   const uniqueClasses = new Set(logData.map(e => (e['class']||'').toLowerCase().trim()).filter(Boolean)).size;
 
+  // best week (by session count, any ISO week)
+  const weekSessionCounts = {};
+  logData.forEach(e => {
+    if (!e.date) return;
+    const d = new Date(e.date+'T00:00:00');
+    const { week: wn, year: wy } = isoWeekNumber(d);
+    const wk = `${wy}-W${String(wn).padStart(2,'0')}`;
+    weekSessionCounts[wk] = (weekSessionCounts[wk] || 0) + 1;
+  });
+  const bestWeek = Object.values(weekSessionCounts).length
+    ? Math.max(...Object.values(weekSessionCounts)) : 0;
+
+  // longest gap between consecutive workout days
+  const gapSorted = [...dateset].sort();
+  let longestGap = 0;
+  for (let i = 1; i < gapSorted.length; i++) {
+    const gap = Math.round((new Date(gapSorted[i]+'T00:00:00') - new Date(gapSorted[i-1]+'T00:00:00')) / 86400000) - 1;
+    if (gap > longestGap) longestGap = gap;
+  }
+
   // ── 1. Overview stats ──────────────────────────────────────────────────
   const trendNote = countPrior === 0
     ? `${countRecent} workouts last 28 days`
@@ -1241,8 +1261,10 @@ function renderTrends() {
       <div class="stat-box"><div class="stat-val">${avgPerWeek}</div><div class="stat-lbl">Days / week avg</div></div>
       <div class="stat-box"><div class="stat-val">${uniqueClasses}</div><div class="stat-lbl">Unique classes</div></div>
       <div class="stat-box"><div class="stat-val" style="color:${trendCol}">${trendDir}</div><div class="stat-lbl">${trendNote}</div></div>
+      <div class="stat-box"><div class="stat-val">${bestWeek}</div><div class="stat-lbl">Best week</div></div>
+      <div class="stat-box"><div class="stat-val">${longestGap}</div><div class="stat-lbl">Longest gap (days)</div></div>
     </div>
-    <div style="margin-top:10px;font-size:12px;color:#666;display:flex;gap:18px">
+    <div style="margin-top:10px;font-size:12px;color:#666;display:flex;gap:18px;flex-wrap:wrap">
       <span>🔥 Current streak: <strong>${streakCur}</strong> day${streakCur!==1?'s':''}</span>
       <span>🏆 Best streak: <strong>${streakBest}</strong> day${streakBest!==1?'s':''}</span>
     </div>
@@ -1531,8 +1553,17 @@ function renderSchedule() {
   if (doneCnt)  summaryParts.push(`${doneCnt} done`);
   if (schedCnt) summaryParts.push(`${schedCnt} scheduled`);
   if (totalMins > 0) summaryParts.push(fmtMins(totalMins));
-  const summaryLine = summaryParts.length
-    ? `<div style="text-align:center;font-size:12px;color:#888;margin-top:-8px;margin-bottom:14px">${summaryParts.join(' · ')}</div>`
+  const isFullPastWeek = datemap['sun'] < todayMid;
+  const clearBtn = isFullPastWeek && doneCnt > 0
+    ? `<button onclick="clearWeek('${isoDate(datemap['mon'])}','${isoDate(datemap['sun'])}')"
+               style="font-size:11px;color:#c0392b;background:none;border:1px solid #f0c0c0;border-radius:4px;padding:2px 9px;cursor:pointer;margin-left:6px">
+         🗑 Clear week
+       </button>`
+    : '';
+  const summaryLine = (summaryParts.length || clearBtn)
+    ? `<div style="text-align:center;font-size:12px;color:#888;margin-top:-8px;margin-bottom:14px;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px">
+         <span>${summaryParts.join(' · ')}</span>${clearBtn}
+       </div>`
     : '';
 
   const nav = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
@@ -1627,6 +1658,18 @@ function removeScheduleItem(day, idx) {
   schedule[day].splice(idx, 1);
   persistSchedule();
   renderSchedule();
+}
+
+function clearWeek(fromDate, toDate) {
+  const entries = logData.filter(e => e.date && e.date >= fromDate && e.date <= toDate);
+  if (!entries.length) return;
+  if (!confirm(`Remove all ${entries.length} session${entries.length !== 1 ? 's' : ''} logged for this week?`)) return;
+  logData = logData
+    .filter(e => !e.date || e.date < fromDate || e.date > toDate)
+    .map((o, i) => ({ ...o, _idx: i }));
+  persist();
+  renderSchedule();
+  showOk(`Cleared ${entries.length} session${entries.length !== 1 ? 's' : ''} from this week`);
 }
 
 // ── Day edit modal ─────────────────────────────────────────────────────────
