@@ -76,6 +76,15 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .btn-del    { color: #b71c1c; border-color: #f2b0b0; }
 .btn-del:hover { background: #fff5f5; }
 
+/* ── Log tab ── */
+.log-month { background: #eaf3ea; padding: 6px 14px; font-size: 12px; font-weight: 600; color: #2e6b30; border-bottom: 1px solid #dce8dc; }
+.log-row   { display: flex; align-items: center; padding: 6px 14px; border-bottom: 1px solid #f2f4f2; gap: 10px; }
+.log-row:last-child { border-bottom: none; }
+.log-row:hover { background: #fafcfa; }
+.log-date  { font-size: 12px; color: #666; width: 62px; flex-shrink: 0; }
+.log-class { flex: 1; font-size: 13px; }
+.log-notes { font-size: 12px; color: #999; flex: 0 0 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 /* ── Placeholder ── */
 .placeholder { padding: 40px; text-align: center; color: #999; font-size: 13px; }
 
@@ -140,7 +149,11 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
       <div class="placeholder">Schedule — coming soon</div>
     </div>
     <div id="tab-log" style="display:none">
-      <div class="placeholder">Log — coming soon</div>
+      <div class="toolbar">
+        <input id="log-search" class="search" type="text" placeholder="Search log…" oninput="renderLog()">
+        <button class="btn btn-primary" onclick="openLogAdd()">+ Log</button>
+      </div>
+      <div id="log-out"><div class="placeholder">Loading…</div></div>
     </div>
   </main>
 </div>
@@ -238,6 +251,30 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
     <button class="btn" style="background:#fde8e8;color:#8b1c1c;width:100%" onclick="clearAllData()">Clear all data from this browser</button>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeOverlay('ov-backup')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Log entry modal ── -->
+<div class="overlay" id="ov-log">
+  <div class="modal">
+    <h3>Log workout</h3>
+    <div class="field">
+      <label>Date</label>
+      <input id="ml-date" type="date">
+    </div>
+    <div class="field">
+      <label>Class</label>
+      <input id="ml-class" type="text" list="ml-class-list" placeholder="activate 4225">
+      <datalist id="ml-class-list"></datalist>
+    </div>
+    <div class="field">
+      <label>Notes</label>
+      <input id="ml-notes" type="text">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeOverlay('ov-log')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitLogEntry()">Save</button>
     </div>
   </div>
 </div>
@@ -392,8 +429,12 @@ function clearAllData() {
 
 // ── Render ─────────────────────────────────────────────────────────────────
 function render() {
-  const q    = document.getElementById('search').value.toLowerCase();
-  const all  = [...files, ...urls];
+  const q = document.getElementById('search').value.toLowerCase();
+  // Deduplicate by name; url entry wins over file entry (it has a link)
+  const nameMap = new Map();
+  for (const c of files) { const k=(c.name||'').toLowerCase().trim(); if(k && !nameMap.has(k)) nameMap.set(k,c); }
+  for (const c of urls)  { const k=(c.name||'').toLowerCase().trim(); if(k) nameMap.set(k,c); }
+  const all  = Array.from(nameMap.values());
   const list = q ? all.filter(c => (c.name || '').toLowerCase().includes(q)) : all;
 
   const lastDone = {};
@@ -675,6 +716,78 @@ function showTab(name) {
   document.querySelectorAll('.nav-btn').forEach((b,i) => {
     b.classList.toggle('active', ['classes','schedule','log'][i]===name);
   });
+  if (name === 'log') renderLog();
+}
+
+// ── Log tab ────────────────────────────────────────────────────────────────
+function renderLog() {
+  const q = (document.getElementById('log-search')?.value || '').toLowerCase();
+  const sorted = logData
+    .filter(e => !q || (e['class']||'').toLowerCase().includes(q) || (e.date||'').includes(q))
+    .slice().sort((a, b) => b.date.localeCompare(a.date));
+
+  if (!sorted.length) {
+    document.getElementById('log-out').innerHTML = '<div class="placeholder">No log entries yet. Use + Log to add one.</div>';
+    return;
+  }
+
+  let html = '', lastMonth = '';
+  for (const e of sorted) {
+    const month = e.date ? e.date.slice(0, 7) : '????-??';
+    if (month !== lastMonth) {
+      if (lastMonth) html += '</div>';
+      const d = new Date(month + '-01T00:00:00');
+      const label = isNaN(d) ? month : d.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' });
+      html += `<div class="cat-card"><div class="log-month">${label}</div><div>`;
+      lastMonth = month;
+    }
+    html += `<div class="log-row">
+      <span class="log-date">${fmtDate(e.date)}</span>
+      <span class="log-class">${esc(e['class'])}</span>
+      <span class="log-notes">${esc(e.notes || '')}</span>
+      <span class="row-actions">
+        <button class="btn-sm btn-del" onclick="delLog(${e._idx})">×</button>
+      </span>
+    </div>`;
+  }
+  if (lastMonth) html += '</div></div>';
+  document.getElementById('log-out').innerHTML = html;
+}
+
+function openLogAdd() {
+  document.getElementById('ml-date').value  = new Date().toISOString().slice(0, 10);
+  document.getElementById('ml-class').value = '';
+  document.getElementById('ml-notes').value = '';
+  // Populate datalist with all known class names
+  const nameMap = new Map();
+  for (const c of files) { const k=(c.name||'').toLowerCase().trim(); if(k && !nameMap.has(k)) nameMap.set(k,c.name); }
+  for (const c of urls)  { const k=(c.name||'').toLowerCase().trim(); if(k) nameMap.set(k,c.name); }
+  document.getElementById('ml-class-list').innerHTML =
+    Array.from(nameMap.values()).sort().map(n => `<option value="${esc(n)}">`).join('');
+  openOverlay('ov-log');
+  document.getElementById('ml-class').focus();
+}
+
+function submitLogEntry() {
+  const date = document.getElementById('ml-date').value;
+  const cls  = document.getElementById('ml-class').value.trim();
+  if (!date || !cls) { showErr('Date and class are required'); return; }
+  logData.push({ date, 'class': cls, notes: document.getElementById('ml-notes').value.trim(), _idx: logData.length });
+  persist();
+  closeOverlay('ov-log');
+  render();      // refresh last-done on Classes tab
+  renderLog();
+  showOk('Logged');
+}
+
+function delLog(idx) {
+  if (!confirm('Delete this log entry?')) return;
+  logData.splice(idx, 1);
+  logData.forEach((e, i) => e._idx = i);
+  persist();
+  renderLog();
+  render();
+  showOk('Deleted');
 }
 function toggleCat(head) {
   const body = head.nextElementSibling, open = body.style.display !== 'none';
@@ -684,7 +797,7 @@ function toggleCat(head) {
 function openOverlay(id)  { document.getElementById(id).classList.add('open'); }
 function closeOverlay(id) { document.getElementById(id).classList.remove('open'); }
 document.addEventListener('click', e => {
-  ['ov-class','ov-import','ov-backup'].forEach(id => {
+  ['ov-class','ov-import','ov-backup','ov-log'].forEach(id => {
     if (e.target === document.getElementById(id)) closeOverlay(id);
   });
 });
