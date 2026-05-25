@@ -582,8 +582,8 @@ function commitScheduleToLog() {
     `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
   const loggedDates = new Set(logData.map(e => e.date).filter(Boolean));
   const newEntries  = [];
-  // Look back 12 weeks; write schedule items for days with no log entry
-  for (let wo = -1; wo >= -12; wo--) {
+  // Look back 12 weeks (including the current week); write schedule items for days with no log entry
+  for (let wo = 0; wo >= -12; wo--) {
     const { map: dm } = weekDates(wo);
     for (const day of DAYS) {
       const dt = dm[day];
