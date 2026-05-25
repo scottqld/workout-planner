@@ -543,6 +543,7 @@ function loadFromStorage() {
     files   = SEED_FILES.map((o, i) => applyAutoDesc({ description: '', descCustom: false, classType: '', instructor: '', ...o, _idx: i, _src: 'drive' }));
     urls    = SEED_URLS.map((o, i)  => applyAutoDesc({ description: '', descCustom: false, classType: '', instructor: '', ...o, _idx: i, _src: 'link'  }));
     logData = log.map((o, i)        => ({ ...o, _idx: i }));
+    try { schedule = JSON.parse(localStorage.getItem('wp-schedule') || '{}'); } catch { schedule = {}; }
     return;
   }
   const raw = k => { try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch { return []; } };
