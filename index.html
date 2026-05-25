@@ -331,7 +331,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.10'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.11'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -368,6 +368,7 @@ function startApp() {
   document.getElementById('screen-app').style.display = '';
   document.getElementById('app-ver').textContent = APP_VERSION;
   loadFromStorage();
+  removeRetroScheduleEntries();
   commitScheduleToLog();
   render();
   showTab('schedule');
@@ -588,6 +589,34 @@ function persistSchedule() {
   localStorage.setItem('wp-schedule', JSON.stringify(schedule));
 }
 
+// One-time repair: remove schedule-generated entries that were retroactively
+// written into the log before this feature was scoped to current-week only.
+function removeRetroScheduleEntries() {
+  const FLAG = 'wp-retro-cleanup-1';
+  if (localStorage.getItem(FLAG)) return;
+  localStorage.setItem(FLAG, '1');
+  const schedNames = new Set(
+    Object.values(schedule).flat().map(n => (n||'').toLowerCase().trim()).filter(Boolean)
+  );
+  if (!schedNames.size) return;
+  // Find the real log end: latest date that has an entry NOT matching the schedule
+  const realDates = logData
+    .filter(e => e.date && !schedNames.has((e.class||'').toLowerCase().trim()))
+    .map(e => e.date).sort();
+  const lastReal = realDates[realDates.length - 1];
+  if (!lastReal) return;
+  const before = logData.length;
+  logData = logData
+    .filter(e => !e.date || e.date <= lastReal || !schedNames.has((e.class||'').toLowerCase().trim()))
+    .map((o, i) => ({ ...o, _idx: i }));
+  if (logData.length < before && !DEV) {
+    const strip = ({ _idx, ...o }) => o;
+    localStorage.setItem('wp-log', JSON.stringify(logData.map(strip)));
+  }
+}
+
+// Commit this week's schedule to the log for days that have already passed
+// and have no existing log entry. Current week only — never retroactive.
 function commitScheduleToLog() {
   if (!Object.keys(schedule).length) return;
   const todayMid = new Date(); todayMid.setHours(0, 0, 0, 0);
@@ -595,19 +624,16 @@ function commitScheduleToLog() {
     `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
   const loggedDates = new Set(logData.map(e => e.date).filter(Boolean));
   const newEntries  = [];
-  // Look back 12 weeks (including the current week); write schedule items for days with no log entry
-  for (let wo = 0; wo >= -12; wo--) {
-    const { map: dm } = weekDates(wo);
-    for (const day of DAYS) {
-      const dt = dm[day];
-      if (dt >= todayMid) continue;
-      const items = schedule[day] || [];
-      if (!items.length) continue;
-      const dateStr = isoD(dt);
-      if (loggedDates.has(dateStr)) continue;
-      for (const name of items) newEntries.push({ date: dateStr, class: name, notes: '' });
-      loggedDates.add(dateStr);
-    }
+  const { map: dm } = weekDates(0); // current week only
+  for (const day of DAYS) {
+    const dt = dm[day];
+    if (dt >= todayMid) continue;   // skip today and future
+    const items = schedule[day] || [];
+    if (!items.length) continue;
+    const dateStr = isoD(dt);
+    if (loggedDates.has(dateStr)) continue;
+    for (const name of items) newEntries.push({ date: dateStr, class: name, notes: '', fromSchedule: true });
+    loggedDates.add(dateStr);
   }
   if (!newEntries.length) return;
   const strip = ({ _idx, ...o }) => o;
