@@ -130,6 +130,8 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .sched-item { display: flex; align-items: center; padding: 7px 14px; border-bottom: 1px solid #f2f4f2; gap: 8px; }
 .sched-item:last-child { border-bottom: none; }
 .sched-item:hover { background: #fafcfa; }
+.sched-item.ti-editable { cursor: pointer; }
+.sched-item.ti-editable:hover { background: #eef7ee !important; }
 .sched-name  { flex: 1; font-size: 13px; min-width: 0; overflow: hidden; }
 .sched-meta  { font-size: 12px; color: #888; flex-shrink: 0; }
 .sched-dur   { font-size: 12px; color: #555; width: 46px; text-align: right; flex-shrink: 0; }
@@ -391,7 +393,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.25'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.26'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -1505,10 +1507,10 @@ function isToday(dt) {
 }
 
 function schedLinkBtn(c, name) {
-  if (c?.url) return `<a href="${esc(c.url)}" target="_blank" class="class-link-btn" title="Play">▶</a>`;
+  if (c?.url) return `<a href="${esc(c.url)}" target="_blank" class="class-link-btn" title="Play" onclick="event.stopPropagation()">▶</a>`;
   if (c?._src === 'drive') {
     const q = encodeURIComponent(name);
-    return `<a href="https://drive.google.com/drive/search?q=${q}&driveId=${DRIVE_FOLDER_ID}" target="_blank" class="class-link-btn drive" title="Find in Drive">📁</a>`;
+    return `<a href="https://drive.google.com/drive/search?q=${q}&driveId=${DRIVE_FOLDER_ID}" target="_blank" class="class-link-btn drive" title="Find in Drive" onclick="event.stopPropagation()">📁</a>`;
   }
   return '';
 }
@@ -1591,13 +1593,14 @@ function renderSchedule() {
           const dur   = c ? fmtDur(c.duration) : '';
           const count = classCounts[name] || 0;
           const sub   = c?.description || '';
-          return `<div class="sched-item">
+          return `<div class="sched-item ti-editable" id="ti-log-${entry._idx}" onclick="tiStartEdit('log','${day}',${entry._idx})">
             <span style="color:#2e6b30;font-size:13px;flex-shrink:0;margin-right:2px">✓</span>
             <span class="sched-name"><span style="display:block">${esc(name)}</span>${sub ? `<span style="display:block;font-size:11px;color:#aaa;font-weight:400;margin-top:1px">${esc(sub)}</span>` : ''}</span>
             ${count > 0 ? `<span class="count-pill" title="Done ${count} time${count!==1?'s':''}">${count}×</span>` : ''}
             ${entry.notes ? `<span class="sched-meta">${esc(entry.notes)}</span>` : ''}
             <span class="sched-dur">${dur}</span>
             ${schedLinkBtn(c, name)}
+            <button class="btn-sm btn-del" onclick="event.stopPropagation();tiDelete('log','${day}',${entry._idx})">×</button>
           </div>`;
         }).join('');
       } else {
@@ -1612,13 +1615,13 @@ function renderSchedule() {
         const meta  = [c?.classType, c?.instructor].filter(Boolean).join(' · ');
         const dur   = c ? fmtDur(c.duration) : '';
         const count = classCounts[name] || 0;
-        return `<div class="sched-item">
+        return `<div class="sched-item ti-editable" id="ti-sched-${day}-${idx}" onclick="tiStartEdit('sched','${day}',${idx})">
           <span class="sched-name"><span style="display:block">${esc(name)}</span>${sub ? `<span style="display:block;font-size:11px;color:#aaa;font-weight:400;margin-top:1px">${esc(sub)}</span>` : ''}</span>
           ${count > 0 ? `<span class="count-pill" title="Done ${count} time${count!==1?'s':''}">${count}×</span>` : ''}
           ${meta ? `<span class="sched-meta">${esc(meta)}</span>` : ''}
           <span class="sched-dur">${dur}</span>
           ${schedLinkBtn(c, name)}
-          <button class="btn-sm btn-del" onclick="removeScheduleItem('${day}',${idx})">×</button>
+          <button class="btn-sm btn-del" onclick="event.stopPropagation();tiDelete('sched','${day}',${idx})">×</button>
         </div>`;
       }).join('') || '<div class="sched-empty">Rest day</div>';
     }
@@ -1626,15 +1629,16 @@ function renderSchedule() {
     const headBg     = today ? 'background:#d4edda' : isPast ? 'background:#f5f5f5' : '';
     const dayColor   = isPast ? 'color:#999' : '';
     const todayBadge = today ? '<span style="font-size:11px;background:#2e6b30;color:#fff;border-radius:4px;padding:1px 6px;margin-left:8px">Today</span>' : '';
-    const editBtn    = `<button class="btn btn-ghost" style="font-size:12px;padding:5px 10px" onclick="openDayEdit('${day}',${isPast},'${dateStr}')">Edit</button>`;
+    const addBtn     = `<button class="btn btn-ghost" style="font-size:15px;padding:3px 10px;line-height:1" title="Add class" onclick="tiAddStart('${day}',${isPast},'${dateStr}')">+</button>`;
 
     return `<div class="cat-card" style="margin-bottom:10px">
       <div class="sched-day-head" style="${headBg}">
         <span class="sched-day-name" style="${dayColor}">${DAY_LABELS[day]}${todayBadge}</span>
         <span style="font-size:12px;color:#999;margin-right:10px">${dayFmt(dt)}</span>
-        ${editBtn}
+        ${addBtn}
       </div>
       <div>${rows}</div>
+      <div id="ti-add-${day}"></div>
     </div>`;
   }).join('');
 
@@ -1651,6 +1655,98 @@ function renderSchedule() {
     : '';
 
   document.getElementById('schedule-out').innerHTML = streakHtml + nav + cards;
+}
+
+// ── Inline timetable editing ───────────────────────────────────────────────
+function tiDatalistHtml(id) {
+  return `<datalist id="${id}">${[...buildClassMap().keys()].sort().map(k=>`<option value="${esc(k)}">`).join('')}</datalist>`;
+}
+
+function tiStartEdit(type, day, dataIdx) {
+  const rowId = type === 'log' ? `ti-log-${dataIdx}` : `ti-sched-${day}-${dataIdx}`;
+  const row   = document.getElementById(rowId);
+  if (!row) return;
+  let curName = '', curNotes = '';
+  if (type === 'sched') {
+    curName = (schedule[day] || [])[dataIdx] || '';
+  } else {
+    const e = logData.find(e => e._idx === dataIdx);
+    curName = e?.['class'] || '';
+    curNotes = e?.notes || '';
+  }
+  const notesHtml = type === 'log'
+    ? `<input id="ti-notes-${rowId}" class="search" value="${esc(curNotes)}" placeholder="notes…"
+             style="width:90px;font-size:12px"
+             onkeydown="if(event.key==='Enter')tiSaveEdit('${type}','${day}',${dataIdx});if(event.key==='Escape')renderSchedule()">`
+    : '';
+  row.innerHTML = `
+    <input id="ti-name-${rowId}" class="search" value="${esc(curName)}" list="ti-dl-${rowId}" style="flex:1;font-size:13px"
+           onkeydown="if(event.key==='Enter')tiSaveEdit('${type}','${day}',${dataIdx});if(event.key==='Escape')renderSchedule()">
+    ${tiDatalistHtml(`ti-dl-${rowId}`)}
+    ${notesHtml}
+    <button class="btn btn-primary" style="font-size:11px;padding:4px 9px" onclick="tiSaveEdit('${type}','${day}',${dataIdx})">Save</button>
+    <button class="btn btn-ghost"   style="font-size:11px;padding:4px 9px" onclick="renderSchedule()">Cancel</button>
+  `;
+  const inp = document.getElementById(`ti-name-${rowId}`);
+  if (inp) { inp.focus(); inp.select(); }
+}
+
+function tiSaveEdit(type, day, dataIdx) {
+  const rowId   = type === 'log' ? `ti-log-${dataIdx}` : `ti-sched-${day}-${dataIdx}`;
+  const newName = document.getElementById(`ti-name-${rowId}`)?.value.trim();
+  if (!newName) return;
+  if (type === 'sched') {
+    if (schedule[day]) schedule[day][dataIdx] = newName;
+    persistSchedule();
+  } else {
+    const newNotes = document.getElementById(`ti-notes-${rowId}`)?.value.trim() || '';
+    const e = logData.find(e => e._idx === dataIdx);
+    if (e) { e['class'] = newName; e.notes = newNotes; delete e.fromSchedule; }
+    persist();
+  }
+  renderSchedule();
+}
+
+function tiDelete(type, day, dataIdx) {
+  if (type === 'sched') {
+    if (schedule[day]) schedule[day].splice(dataIdx, 1);
+    persistSchedule();
+  } else {
+    logData = logData.filter(e => e._idx !== dataIdx).map((o, i) => ({ ...o, _idx: i }));
+    persist();
+  }
+  renderSchedule();
+}
+
+function tiAddStart(day, isPast, dateStr) {
+  const container = document.getElementById(`ti-add-${day}`);
+  if (!container) return;
+  container.innerHTML = `
+    <div style="display:flex;align-items:center;gap:6px;padding:7px 14px;border-top:1px solid #eee">
+      <input id="ti-add-inp-${day}" class="search" list="ti-add-dl-${day}" placeholder="Class name…" style="flex:1;font-size:13px"
+             onkeydown="if(event.key==='Enter')tiAddSave('${day}',${isPast},'${dateStr}');if(event.key==='Escape')renderSchedule()">
+      ${tiDatalistHtml(`ti-add-dl-${day}`)}
+      <button class="btn btn-primary" style="font-size:11px;padding:4px 9px" onclick="tiAddSave('${day}',${isPast},'${dateStr}')">Add</button>
+      <button class="btn btn-ghost"   style="font-size:11px;padding:4px 9px" onclick="renderSchedule()">Cancel</button>
+    </div>`;
+  document.getElementById(`ti-add-inp-${day}`)?.focus();
+}
+
+function tiAddSave(day, isPast, dateStr) {
+  const name = document.getElementById(`ti-add-inp-${day}`)?.value.trim();
+  if (!name) { renderSchedule(); return; }
+  if (isPast) {
+    const strip = ({ _idx, ...o }) => o;
+    const all   = [...logData.map(strip), { date: dateStr, class: name, notes: '' }];
+    all.sort((a, b) => (a.date||'').localeCompare(b.date||''));
+    logData = all.map((o, i) => ({ ...o, _idx: i }));
+    persist();
+  } else {
+    if (!schedule[day]) schedule[day] = [];
+    schedule[day].push(name);
+    persistSchedule();
+  }
+  renderSchedule();
 }
 
 function removeScheduleItem(day, idx) {
