@@ -366,6 +366,7 @@ function startApp() {
   document.getElementById('screen-pin').style.display = 'none';
   document.getElementById('screen-app').style.display = '';
   loadFromStorage();
+  commitScheduleToLog();
   render();
 }
 
@@ -572,6 +573,35 @@ function persist() {
 
 function persistSchedule() {
   localStorage.setItem('wp-schedule', JSON.stringify(schedule));
+}
+
+function commitScheduleToLog() {
+  if (!Object.keys(schedule).length) return;
+  const todayMid = new Date(); todayMid.setHours(0, 0, 0, 0);
+  const isoD = dt =>
+    `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+  const loggedDates = new Set(logData.map(e => e.date).filter(Boolean));
+  const newEntries  = [];
+  // Look back 12 weeks; write schedule items for days with no log entry
+  for (let wo = -1; wo >= -12; wo--) {
+    const { map: dm } = weekDates(wo);
+    for (const day of DAYS) {
+      const dt = dm[day];
+      if (dt >= todayMid) continue;
+      const items = schedule[day] || [];
+      if (!items.length) continue;
+      const dateStr = isoD(dt);
+      if (loggedDates.has(dateStr)) continue;
+      for (const name of items) newEntries.push({ date: dateStr, class: name, notes: '' });
+      loggedDates.add(dateStr);
+    }
+  }
+  if (!newEntries.length) return;
+  const strip = ({ _idx, ...o }) => o;
+  const all = [...logData.map(strip), ...newEntries];
+  all.sort((a, b) => (a.date||'').localeCompare(b.date||''));
+  if (!DEV) localStorage.setItem('wp-log', JSON.stringify(all));
+  logData = all.map((o, i) => ({ ...o, _idx: i }));
 }
 
 // ── CSV ────────────────────────────────────────────────────────────────────
@@ -1043,10 +1073,8 @@ function renderSchedule() {
 
     if (isPast) {
       // ── Past day: logged entries first; fall back to template ────────────
-      const logEntries   = dateLogMap.get(dateStr) || [];
-      const tmplItems    = schedule[day] || [];
+      const logEntries = dateLogMap.get(dateStr) || [];
       if (logEntries.length > 0) {
-        // Actual log entries — solid green tick
         rows = logEntries.map(entry => {
           const name = entry.class || '';
           const c    = classMap.get(name.toLowerCase().trim());
@@ -1056,21 +1084,6 @@ function renderSchedule() {
             <span style="color:#2e6b30;font-size:13px;flex-shrink:0;margin-right:2px">✓</span>
             <span class="sched-name" title="${esc(name)}">${esc(desc)}</span>
             ${entry.notes ? `<span class="sched-meta">${esc(entry.notes)}</span>` : ''}
-            <span class="sched-dur">${dur}</span>
-            ${schedLinkBtn(c, name)}
-          </div>`;
-        }).join('');
-      } else if (tmplItems.length > 0) {
-        // No log — show scheduled template in muted style
-        rows = tmplItems.map(name => {
-          const c    = classMap.get((name||'').toLowerCase().trim());
-          const desc = c?.description || name;
-          const meta = [c?.classType, c?.instructor].filter(Boolean).join(' · ');
-          const dur  = c ? fmtDur(c.duration) : '';
-          return `<div class="sched-item" style="opacity:0.55">
-            <span style="color:#aaa;font-size:13px;flex-shrink:0;margin-right:2px">○</span>
-            <span class="sched-name" title="${esc(name)}">${esc(desc)}</span>
-            ${meta ? `<span class="sched-meta">${esc(meta)}</span>` : ''}
             <span class="sched-dur">${dur}</span>
             ${schedLinkBtn(c, name)}
           </div>`;
