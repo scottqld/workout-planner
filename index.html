@@ -367,7 +367,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.19'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.20'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -1336,9 +1336,11 @@ function renderDayEditItems() {
     html = entries.length
       ? entries.map(e => {
           const c = classMap.get((e['class']||'').toLowerCase().trim());
-          return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f2f2f2">
-            <span style="flex:1;font-size:13px">${esc(e['class'])}</span>
+          return `<div id="day-row-${e._idx}" style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f2f2f2">
+            <span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e['class'])}</span>
+            ${e.notes ? `<span style="font-size:11px;color:#aaa;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.notes)}</span>` : ''}
             ${c ? `<span style="font-size:12px;color:#aaa">${fmtDur(c.duration)}</span>` : ''}
+            <button class="btn-sm" onclick="dayItemStartEdit('day-row-${e._idx}','log',${e._idx})">✏</button>
             <button class="btn-sm btn-del" onclick="dayEditRemoveLog(${e._idx})">×</button>
           </div>`;
         }).join('')
@@ -1348,9 +1350,10 @@ function renderDayEditItems() {
     html = items.length
       ? items.map((name, idx) => {
           const c = classMap.get((name||'').toLowerCase().trim());
-          return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f2f2f2">
-            <span style="flex:1;font-size:13px">${esc(name)}</span>
+          return `<div id="day-row-s${idx}" style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f2f2f2">
+            <span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(name)}</span>
             ${c ? `<span style="font-size:12px;color:#aaa">${fmtDur(c.duration)}</span>` : ''}
+            <button class="btn-sm" onclick="dayItemStartEdit('day-row-s${idx}','sched',${idx})">✏</button>
             <button class="btn-sm btn-del" onclick="dayEditRemoveSched('${day}',${idx})">×</button>
           </div>`;
         }).join('')
@@ -1373,6 +1376,49 @@ function dayEditRemoveSched(day, idx) {
   if (!schedule[day]) return;
   schedule[day].splice(idx, 1);
   persistSchedule();
+  renderDayEditItems();
+  renderSchedule();
+}
+
+function dayItemStartEdit(rowId, type, dataIdx) {
+  const { day } = dayEditState;
+  let currentName = '', currentNotes = '';
+  if (type === 'sched') {
+    currentName = (schedule[day] || [])[dataIdx] || '';
+  } else {
+    const e = logData.find(e => e._idx === dataIdx);
+    currentName = e?.['class'] || '';
+    currentNotes = e?.notes || '';
+  }
+  const notesInput = type === 'log'
+    ? `<input id="day-inline-notes" class="search" value="${esc(currentNotes)}" placeholder="notes…"
+             style="width:100px;font-size:12px" onkeydown="if(event.key==='Enter')dayItemSaveEdit('${type}',${dataIdx})">`
+    : '';
+  document.getElementById(rowId).innerHTML = `
+    <input id="day-inline-name" class="search" value="${esc(currentName)}" style="flex:1;font-size:13px"
+           list="day-edit-list"
+           onkeydown="if(event.key==='Enter')dayItemSaveEdit('${type}',${dataIdx});if(event.key==='Escape')renderDayEditItems()">
+    ${notesInput}
+    <button class="btn btn-primary" style="font-size:11px;padding:4px 9px" onclick="dayItemSaveEdit('${type}',${dataIdx})">Save</button>
+    <button class="btn btn-ghost"   style="font-size:11px;padding:4px 9px" onclick="renderDayEditItems()">✕</button>
+  `;
+  document.getElementById('day-inline-name').focus();
+  document.getElementById('day-inline-name').select();
+}
+
+function dayItemSaveEdit(type, dataIdx) {
+  const newName = document.getElementById('day-inline-name')?.value.trim();
+  if (!newName) return;
+  const { day } = dayEditState;
+  if (type === 'sched') {
+    if (schedule[day]) schedule[day][dataIdx] = newName;
+    persistSchedule();
+  } else {
+    const newNotes = document.getElementById('day-inline-notes')?.value.trim() || '';
+    const e = logData.find(e => e._idx === dataIdx);
+    if (e) { e['class'] = newName; e.notes = newNotes; delete e.fromSchedule; }
+    persist();
+  }
   renderDayEditItems();
   renderSchedule();
 }
