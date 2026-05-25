@@ -359,11 +359,12 @@ function lock() {
 // ── Auto-description from filename codes ───────────────────────────────────
 function autoDescription(c) {
   const CAT_DISPLAY = {
-    'activate':'Activate','ba':'Body Attack','circuit':'Circuit','csc':'CSC',
-    'dumbbell':'Dumbbell','f&f':'Fast & Furious','grit':'Grit','hiit':'HIIT',
-    'jk':'Jamie Kincaid','mobility':'Mobility','nuffield':'Nuffield',
-    'pilates':'Pilates','pump':'Pump','strength':'Strength','stretch':'Stretch',
-    'tai chi':'Tai Chi','tpr':'TPR','yoga':'Yoga','z bp':'BP','bp':'BP',
+    'activate':'Activate','ba':'Body Attack','circuit':'Circuit',
+    'csc':'Cardio Strength Core','dumbbell':'Dumbbell','f&f':'Fast and Furious',
+    'grit':'Grit','hiit':'HIIT','jk':'Jamie Kincaid','mobility':'Mobility',
+    'nuffield':'Nuffield','pilates':'Pilates','pump':'Pump','strength':'Strength',
+    'stretch':'Stretch','tai chi':'Tai Chi','tpr':'TPR','yoga':'Yoga',
+    'z bp':'BP','bp':'BP',
   };
   // Single-letter codes → instructor name (checked in tags and notes)
   const SHORT_INSTR = {'k':'Kate','r':'Rachel','s':'Sophie','d':'Diana','f':'France'};
@@ -490,8 +491,8 @@ function autoInstructor(c) {
 }
 
 function applyAutoDesc(e) {
-  if (!e.description) e.description = autoDescription(e);
-  if (!e.instructor)  e.instructor  = autoInstructor(e);
+  e.description = autoDescription(e);   // always regenerate so mapping changes take effect
+  if (!e.instructor) e.instructor = autoInstructor(e);
   return e;
 }
 
