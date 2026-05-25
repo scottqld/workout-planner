@@ -336,7 +336,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.16'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.17'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -1037,6 +1037,34 @@ function fmtMins(m) {
   return h === 0 ? `${r}m` : r === 0 ? `${h}h` : `${h}h ${r}m`;
 }
 
+function calcStreak() {
+  const isoD = dt => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+  const dateset = new Set(logData.map(e => e.date).filter(Boolean));
+
+  // Current streak: count back from today (or yesterday if today has no entry yet)
+  const cursor = new Date(); cursor.setHours(0,0,0,0);
+  if (!dateset.has(isoD(cursor))) cursor.setDate(cursor.getDate() - 1);
+  let current = 0;
+  while (dateset.has(isoD(cursor))) {
+    current++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+
+  // Best streak: scan all sorted dates
+  const sorted = [...dateset].sort();
+  let best = 0, run = 0;
+  for (let i = 0; i < sorted.length; i++) {
+    if (i === 0) { run = 1; }
+    else {
+      const diff = (new Date(sorted[i]+'T00:00:00') - new Date(sorted[i-1]+'T00:00:00')) / 86400000;
+      run = diff === 1 ? run + 1 : 1;
+    }
+    if (run > best) best = run;
+  }
+  best = Math.max(best, current);
+  return { current, best };
+}
+
 // ── UI ─────────────────────────────────────────────────────────────────────
 function showTab(name) {
   ['classes','schedule','log'].forEach(t => {
@@ -1236,7 +1264,19 @@ function renderSchedule() {
     </div>`;
   }).join('');
 
-  document.getElementById('schedule-out').innerHTML = nav + cards;
+  const { current: streakNow, best: streakBest } = calcStreak();
+  const streakHtml = streakNow > 0
+    ? `<div style="text-align:center;margin-bottom:12px">
+        <span style="background:#fff;border-radius:20px;padding:6px 16px;box-shadow:0 1px 3px rgba(0,0,0,.08);display:inline-flex;align-items:center;gap:10px;font-size:13px">
+          <span>🔥 <strong style="color:#2e6b30;font-size:15px">${streakNow}</strong> day streak</span>
+          ${streakNow >= streakBest
+            ? `<span style="font-size:11px;font-weight:600;color:#e67e22">★ personal best!</span>`
+            : `<span style="color:#ccc">·</span><span style="color:#aaa;font-size:12px">best&nbsp;${streakBest}</span>`}
+        </span>
+      </div>`
+    : '';
+
+  document.getElementById('schedule-out').innerHTML = streakHtml + nav + cards;
 }
 
 function showSchedAdd(day) {
