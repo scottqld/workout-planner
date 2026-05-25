@@ -58,8 +58,9 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .class-row { display: flex; align-items: center; padding: 7px 14px; border-bottom: 1px solid #f2f4f2; gap: 8px; }
 .class-row:last-child { border-bottom: none; }
 .class-row:hover { background: #fafcfa; }
-.class-name { flex: 1; font-size: 13px; min-width: 0; }
-.class-desc { flex: 1.4; font-size: 12px; color: #777; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.class-name  { flex: 1; font-size: 13px; min-width: 0; }
+.class-desc  { flex: 1.2; font-size: 12px; color: #777; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.class-instr { font-size: 12px; color: #3a6a9b; width: 110px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .src-icon   { font-size: 11px; opacity: .55; }
 .class-dur  { font-size: 12px; color: #555; width: 46px; text-align: right; flex-shrink: 0; }
 .class-tags { display: flex; gap: 3px; flex-shrink: 0; }
@@ -73,9 +74,10 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .class-last.never   { color: #aaa; font-style: italic; }
 .col-head { display: flex; align-items: center; padding: 4px 14px; gap: 8px; border-bottom: 1px solid #dce8dc; background: #f4f9f4; position: sticky; top: 48px; z-index: 10; }
 .col-head span { font-size: 11px; color: #999; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
-.col-head .ch-name { flex: 1; min-width: 0; }
-.col-head .ch-desc { flex: 1.4; min-width: 0; }
-.col-head .ch-dur  { width: 46px; text-align: right; flex-shrink: 0; }
+.col-head .ch-name  { flex: 1; min-width: 0; }
+.col-head .ch-desc  { flex: 1.2; min-width: 0; }
+.col-head .ch-instr { width: 110px; flex-shrink: 0; }
+.col-head .ch-dur   { width: 46px; text-align: right; flex-shrink: 0; }
 .col-head .ch-tags { width: 80px; flex-shrink: 0; }
 .col-head .ch-last { width: 90px; text-align: right; flex-shrink: 0; }
 .col-head .ch-act  { width: 72px; flex-shrink: 0; }
@@ -178,6 +180,10 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
     <div class="field">
       <label>Description <span style="color:#aaa;font-weight:400">(human-readable, optional)</span></label>
       <input id="m-desc" type="text" placeholder="e.g. Full body cardio with weights">
+    </div>
+    <div class="field">
+      <label>Instructor <span style="color:#aaa;font-weight:400">(auto-filled from name, optional)</span></label>
+      <input id="m-instr" type="text" placeholder="e.g. Kate  or  Kate &amp; Rachel">
     </div>
     <div class="field-row">
       <div class="field">
@@ -304,9 +310,9 @@ const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit',
 const DEV = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 
 const SHEET_DEFS = {
-  files: { key: 'wp-files', cols: ['name','category','duration','tags','description','notes'] },
-  urls:  { key: 'wp-urls',  cols: ['name','category','duration','url','description','notes']  },
-  log:   { key: 'wp-log',   cols: ['date','class','notes']                      },
+  files: { key: 'wp-files', cols: ['name','category','duration','instructor','tags','description','notes'] },
+  urls:  { key: 'wp-urls',  cols: ['name','category','duration','instructor','url','description','notes']  },
+  log:   { key: 'wp-log',   cols: ['date','class','notes']                                                 },
 };
 
 // ── State ──────────────────────────────────────────────────────────────────
@@ -456,19 +462,45 @@ function autoDescription(c) {
 
   const parts = [className];
   if (subType)          parts.push(subType);
-  if (instrSet.length)  parts.push(instrSet.join(' & '));
   if (typeParts.length) parts.push(typeParts.join(', '));
   return parts.join(' · ');
 }
 
-function applyAutoDesc(e) { if (!e.description) e.description = autoDescription(e); return e; }
+function autoInstructor(c) {
+  const SHORT_INSTR = {'k':'Kate','r':'Rachel','s':'Sophie','d':'Diana','f':'France'};
+  const FULL_INSTR  = new Set(['kate','rachel','sophie','ryan','lorence','claire','anita','tam','diana','france']);
+  const tagWords  = (c.tags ||'').toLowerCase().trim().split(/\s+/).filter(Boolean);
+  const noteWords = (c.notes||'').toLowerCase().trim().split(/\s+/).filter(Boolean);
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  const set = [];
+  for (const w of tagWords)  if (SHORT_INSTR[w]) set.push(SHORT_INSTR[w]);
+  for (const w of noteWords) {
+    if (FULL_INSTR.has(w) || (SHORT_INSTR[w] && w.length === 1)) {
+      const nm = SHORT_INSTR[w] || cap(w);
+      if (!set.includes(nm)) set.push(nm);
+    }
+  }
+  if (set.includes('Kate') && set.includes('Rachel')) {
+    set.splice(set.indexOf('Kate'),1); set.splice(set.indexOf('Rachel'),1); set.unshift('Kate & Rachel');
+  }
+  if (set.includes('Rachel') && set.includes('Sophie')) {
+    set.splice(set.indexOf('Rachel'),1); set.splice(set.indexOf('Sophie'),1); set.push('Rachel & Sophie');
+  }
+  return set.join(', ');
+}
+
+function applyAutoDesc(e) {
+  if (!e.description) e.description = autoDescription(e);
+  if (!e.instructor)  e.instructor  = autoInstructor(e);
+  return e;
+}
 
 // ── Storage ────────────────────────────────────────────────────────────────
 function loadFromStorage() {
   if (DEV) {
     const log = parseLogText(SEED_LOG_TEXT);
-    files   = SEED_FILES.map((o, i) => applyAutoDesc({ description: '', ...o, _idx: i, _src: 'drive' }));
-    urls    = SEED_URLS.map((o, i)  => applyAutoDesc({ description: '', ...o, _idx: i, _src: 'link'  }));
+    files   = SEED_FILES.map((o, i) => applyAutoDesc({ description: '', instructor: '', ...o, _idx: i, _src: 'drive' }));
+    urls    = SEED_URLS.map((o, i)  => applyAutoDesc({ description: '', instructor: '', ...o, _idx: i, _src: 'link'  }));
     logData = log.map((o, i)        => ({ ...o, _idx: i }));
     return;
   }
@@ -482,8 +514,8 @@ function loadFromStorage() {
     localStorage.setItem('wp-urls',  JSON.stringify(u));
     localStorage.setItem('wp-log',   JSON.stringify(l));
   }
-  files   = f.map((o, i) => applyAutoDesc({ description: '', ...o, _idx: i, _src: 'drive' }));
-  urls    = u.map((o, i) => applyAutoDesc({ description: '', ...o, _idx: i, _src: 'link'  }));
+  files   = f.map((o, i) => applyAutoDesc({ description: '', instructor: '', ...o, _idx: i, _src: 'drive' }));
+  urls    = u.map((o, i) => applyAutoDesc({ description: '', instructor: '', ...o, _idx: i, _src: 'link'  }));
   logData = l.map((o, i) => ({ ...o, _idx: i }));
 }
 
@@ -597,6 +629,7 @@ function renderCat(cat, items, lastDone) {
     return `<div class="class-row">
       <span class="class-name">${esc(c.name)}${icon}</span>
       <span class="class-desc">${esc(c.description || '')}</span>
+      <span class="class-instr">${esc(c.instructor || '')}</span>
       <span class="class-dur">${fmtDur(c.duration)}</span>
       <span class="class-tags">${renderTags(c.tags || '')}</span>
       <span class="class-last ${days===null?'never':days>60?'overdue':''}">${days===null?'never':fmtDate(ld)}</span>
@@ -609,6 +642,7 @@ function renderCat(cat, items, lastDone) {
   const colHead = `<div class="col-head">
     <span class="ch-name">Class</span>
     <span class="ch-desc">Description</span>
+    <span class="ch-instr">Instructor</span>
     <span class="ch-dur">Time</span>
     <span class="ch-tags"></span>
     <span class="ch-last">Last done</span>
@@ -638,7 +672,7 @@ function renderTags(tags) {
 function openAdd() {
   editTarget = null;
   document.getElementById('m-title').textContent = 'Add class';
-  ['m-name','m-desc','m-cat','m-dur','m-tags','m-url','m-notes'].forEach(id => document.getElementById(id).value = '');
+  ['m-name','m-desc','m-instr','m-cat','m-dur','m-tags','m-url','m-notes'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('m-src').value = 'drive';
   toggleSrcFields();
   openOverlay('ov-class');
@@ -652,6 +686,7 @@ function openEdit(src, idx) {
   document.getElementById('m-title').textContent = 'Edit class';
   document.getElementById('m-name').value  = c.name;
   document.getElementById('m-desc').value  = c.description || '';
+  document.getElementById('m-instr').value = c.instructor  || '';
   document.getElementById('m-cat').value   = c.category;
   document.getElementById('m-dur').value   = c.duration;
   document.getElementById('m-src').value   = src;
@@ -682,7 +717,9 @@ function submitClass() {
   if (!name) { showErr('Name is required'); return; }
   const src = document.getElementById('m-src').value, isLink = src === 'link';
   const record = {
-    name, description: document.getElementById('m-desc').value.trim(),
+    name,
+    description: document.getElementById('m-desc').value.trim(),
+    instructor:  document.getElementById('m-instr').value.trim(),
     category: document.getElementById('m-cat').value.trim(),
     duration: document.getElementById('m-dur').value.trim(),
     tags: isLink ? '' : document.getElementById('m-tags').value.trim(),
