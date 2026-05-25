@@ -1042,11 +1042,11 @@ function renderSchedule() {
     let rows, addSection = '';
 
     if (isPast) {
-      // ── Past day: show what was actually logged ──────────────────────────
-      const logEntries = dateLogMap.get(dateStr) || [];
-      if (logEntries.length === 0) {
-        rows = '<div class="sched-empty">No activity logged</div>';
-      } else {
+      // ── Past day: logged entries first; fall back to template ────────────
+      const logEntries   = dateLogMap.get(dateStr) || [];
+      const tmplItems    = schedule[day] || [];
+      if (logEntries.length > 0) {
+        // Actual log entries — solid green tick
         rows = logEntries.map(entry => {
           const name = entry.class || '';
           const c    = classMap.get(name.toLowerCase().trim());
@@ -1060,6 +1060,23 @@ function renderSchedule() {
             ${schedLinkBtn(c, name)}
           </div>`;
         }).join('');
+      } else if (tmplItems.length > 0) {
+        // No log — show scheduled template in muted style
+        rows = tmplItems.map(name => {
+          const c    = classMap.get((name||'').toLowerCase().trim());
+          const desc = c?.description || name;
+          const meta = [c?.classType, c?.instructor].filter(Boolean).join(' · ');
+          const dur  = c ? fmtDur(c.duration) : '';
+          return `<div class="sched-item" style="opacity:0.55">
+            <span style="color:#aaa;font-size:13px;flex-shrink:0;margin-right:2px">○</span>
+            <span class="sched-name" title="${esc(name)}">${esc(desc)}</span>
+            ${meta ? `<span class="sched-meta">${esc(meta)}</span>` : ''}
+            <span class="sched-dur">${dur}</span>
+            ${schedLinkBtn(c, name)}
+          </div>`;
+        }).join('');
+      } else {
+        rows = '<div class="sched-empty">Rest day</div>';
       }
     } else {
       // ── Today / future: show weekly template ────────────────────────────
