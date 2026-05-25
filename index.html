@@ -132,7 +132,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .sched-item:hover { background: #fafcfa; }
 .sched-item.ti-editable { cursor: pointer; }
 .sched-item.ti-editable:hover { background: #eef7ee !important; }
-.ti-picker  { position:absolute;top:calc(100% + 2px);left:0;right:0;background:#fff;border:1px solid #bcd;border-radius:6px;max-height:260px;overflow-y:auto;z-index:200;box-shadow:0 4px 14px rgba(0,0,0,.14);display:none; }
+.ti-picker  { position:fixed;background:#fff;border:1px solid #bcd;border-radius:6px;max-height:260px;overflow-y:auto;z-index:9999;box-shadow:0 4px 14px rgba(0,0,0,.14);display:none; }
 .ti-pick-item { display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;border-bottom:1px solid #f5f5f5;user-select:none; }
 .ti-pick-item:last-child { border-bottom:none; }
 .ti-pick-item:hover,.ti-pick-item.ti-pick-active { background:#eef7ee; }
@@ -400,7 +400,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.28'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.29'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -1682,6 +1682,11 @@ function tiPickerFilter(inputId, pickerId) {
   if (!inp || !pick) return;
   const items = tiPickerItems(inp.value);
   if (!items.length) { pick.style.display='none'; return; }
+  // Position using fixed coords so overflow:hidden on .cat-card doesn't clip it
+  const rect = inp.getBoundingClientRect();
+  pick.style.top   = (rect.bottom + 2) + 'px';
+  pick.style.left  = rect.left + 'px';
+  pick.style.width = Math.max(rect.width, 260) + 'px';
   pick._active = -1;
   pick.innerHTML = items.map(c =>
     `<div class="ti-pick-item" data-name="${esc(c.name)}"
