@@ -400,7 +400,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.27'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.28'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -1611,7 +1611,7 @@ function renderSchedule() {
           </div>`;
         }).join('');
       } else {
-        rows = '<div class="sched-empty">Rest day</div>';
+        rows = `<div class="sched-empty" style="cursor:pointer" onclick="tiAddStart('${day}',true,'${dateStr}')" title="Click to add a session">+ Add session</div>`;
       }
     } else {
       // ── Today / future: show weekly template ────────────────────────────
@@ -1630,7 +1630,7 @@ function renderSchedule() {
           ${schedLinkBtn(c, name)}
           <button class="btn-sm btn-del" onclick="event.stopPropagation();tiDelete('sched','${day}',${idx})">×</button>
         </div>`;
-      }).join('') || '<div class="sched-empty">Rest day</div>';
+      }).join('') || `<div class="sched-empty" style="cursor:pointer" onclick="tiAddStart('${day}',false,'${dateStr}')" title="Click to add a class">+ Add class</div>`;
     }
 
     const headBg     = today ? 'background:#d4edda' : isPast ? 'background:#f5f5f5' : '';
