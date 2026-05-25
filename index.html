@@ -73,6 +73,8 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .class-last   { font-size: 12px; color: #888; width: 90px; text-align: right; flex-shrink: 0; }
 .class-last.overdue { color: #c0392b; font-weight: 500; }
 .class-last.never   { color: #aaa; font-style: italic; }
+.class-count  { font-size: 12px; color: #888; width: 36px; text-align: right; flex-shrink: 0; }
+.count-pill   { display: inline-block; font-size: 10px; background: #eaf3ea; color: #4a7c4e; border-radius: 10px; padding: 1px 5px; font-weight: 600; flex-shrink: 0; }
 .col-head { display: flex; align-items: center; padding: 4px 14px; gap: 8px; border-bottom: 1px solid #dce8dc; background: #f4f9f4; position: sticky; top: 48px; z-index: 10; }
 .col-head span { font-size: 11px; color: #999; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
 .col-head .ch-name  { flex: 1; min-width: 0; }
@@ -81,6 +83,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .col-head .ch-instr { width: 110px; flex-shrink: 0; white-space: nowrap; }
 .col-head .ch-dur   { width: 46px; text-align: right; flex-shrink: 0; }
 .col-head .ch-link  { width: 36px; flex-shrink: 0; }
+.col-head .ch-count { width: 36px; text-align: right; flex-shrink: 0; }
 .class-link-btn { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 20px; border-radius: 4px; background: #e8f0fe; color: #1a5cb8; font-size: 12px; text-decoration: none; border: 1px solid #c5d8fb; }
 .class-link-btn:hover { background: #d0e4ff; }
 .class-link-btn.drive { background: #eaf3ea; color: #2e6b30; border-color: #b8dbb8; font-size: 11px; }
@@ -331,7 +334,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.11'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.12'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -713,9 +716,12 @@ function render() {
   const list = q ? all.filter(c => (c.name || '').toLowerCase().includes(q)) : all;
 
   const lastDone = {};
+  const classCounts = {};
   logData.forEach(e => {
     const n = (e['class'] || '').trim();
-    if (!n || !e.date) return;
+    if (!n) return;
+    classCounts[n] = (classCounts[n] || 0) + 1;
+    if (!e.date) return;
     if (!lastDone[n] || e.date > lastDone[n]) lastDone[n] = e.date;
   });
 
@@ -728,11 +734,11 @@ function render() {
   });
 
   document.getElementById('classes-out').innerHTML = cats.length
-    ? cats.map(cat => renderCat(cat, groups[cat], lastDone)).join('')
+    ? cats.map(cat => renderCat(cat, groups[cat], lastDone, classCounts)).join('')
     : '<div class="placeholder">No classes yet. Use Import or + Add to get started.</div>';
 }
 
-function renderCat(cat, items, lastDone) {
+function renderCat(cat, items, lastDone, classCounts) {
   const sorted = items.slice().sort((a, b) => {
     const da = lastDone[a.name] ? +new Date(lastDone[a.name]) : 0;
     const db = lastDone[b.name] ? +new Date(lastDone[b.name]) : 0;
@@ -740,9 +746,10 @@ function renderCat(cat, items, lastDone) {
   });
   const note = cat === 'dumbbell' ? '<span class="cat-note">≥40:00 = long · &lt;40:00 = short</span>' : '';
   const rows = sorted.map(c => {
-    const ld   = lastDone[c.name];
-    const days = ld ? Math.floor((Date.now() - new Date(ld)) / 86400000) : null;
-    const icon = c._src === 'link' ? ' <span class="src-icon" title="Online">🔗</span>' : '';
+    const ld    = lastDone[c.name];
+    const days  = ld ? Math.floor((Date.now() - new Date(ld)) / 86400000) : null;
+    const count = classCounts[c.name] || 0;
+    const icon  = c._src === 'link' ? ' <span class="src-icon" title="Online">🔗</span>' : '';
     return `<div class="class-row">
       <span class="class-name">${esc(c.name)}${icon}</span>
       <span class="class-desc">${esc(c.description || '')}</span>
@@ -757,6 +764,7 @@ function renderCat(cat, items, lastDone) {
             ? `<a href="https://drive.google.com/drive/search?q=${encodeURIComponent(c.name)}&driveId=${DRIVE_FOLDER_ID}" target="_blank" rel="noopener" class="class-link-btn drive" title="Find in Google Drive: ${esc(c.name)}">📁</a>`
             : ''
       }</span>
+      <span class="class-count" title="${count} time${count!==1?'s':''} done">${count || ''}</span>
       <span class="class-last ${days===null?'never':days>60?'overdue':''}">${days===null?'never':fmtDate(ld)}</span>
       <span class="row-actions">
         <button class="btn-sm" onclick="openEdit('${c._src}',${c._idx})">Edit</button>
@@ -772,6 +780,7 @@ function renderCat(cat, items, lastDone) {
     <span class="ch-dur">Duration</span>
     <span class="ch-tags"></span>
     <span class="ch-link"></span>
+    <span class="ch-count">#</span>
     <span class="ch-last">Last done</span>
     <span class="ch-act"></span>
   </div>`;
@@ -1090,6 +1099,12 @@ function renderSchedule() {
   const classMap   = buildClassMap();
   const dateLogMap = buildDateLogMap();
   const allNames   = [...classMap.keys()].sort();
+  const classCounts = {};
+  for (const e of logData) {
+    const n = (e['class'] || '').trim();
+    if (!n) continue;
+    classCounts[n] = (classCounts[n] || 0) + 1;
+  }
   const dayFmt     = dt => dt.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
   const atToday    = schedWeekOffset === 0;
   const todayMid   = new Date(); todayMid.setHours(0,0,0,0);
@@ -1115,13 +1130,15 @@ function renderSchedule() {
       const logEntries = dateLogMap.get(dateStr) || [];
       if (logEntries.length > 0) {
         rows = logEntries.map(entry => {
-          const name = entry.class || '';
-          const c    = classMap.get(name.toLowerCase().trim());
-          const desc = c?.description || name;
-          const dur  = c ? fmtDur(c.duration) : '';
+          const name  = entry.class || '';
+          const c     = classMap.get(name.toLowerCase().trim());
+          const desc  = c?.description || name;
+          const dur   = c ? fmtDur(c.duration) : '';
+          const count = classCounts[name] || 0;
           return `<div class="sched-item">
             <span style="color:#2e6b30;font-size:13px;flex-shrink:0;margin-right:2px">✓</span>
             <span class="sched-name" title="${esc(name)}">${esc(desc)}</span>
+            ${count > 0 ? `<span class="count-pill" title="Done ${count} time${count!==1?'s':''}">${count}×</span>` : ''}
             ${entry.notes ? `<span class="sched-meta">${esc(entry.notes)}</span>` : ''}
             <span class="sched-dur">${dur}</span>
             ${schedLinkBtn(c, name)}
@@ -1134,12 +1151,14 @@ function renderSchedule() {
       // ── Today / future: show weekly template ────────────────────────────
       const items = schedule[day] || [];
       rows = items.map((name, idx) => {
-        const c    = classMap.get((name||'').toLowerCase().trim());
-        const desc = c?.description || name;
-        const meta = [c?.classType, c?.instructor].filter(Boolean).join(' · ');
-        const dur  = c ? fmtDur(c.duration) : '';
+        const c     = classMap.get((name||'').toLowerCase().trim());
+        const desc  = c?.description || name;
+        const meta  = [c?.classType, c?.instructor].filter(Boolean).join(' · ');
+        const dur   = c ? fmtDur(c.duration) : '';
+        const count = classCounts[name] || 0;
         return `<div class="sched-item">
           <span class="sched-name" title="${esc(name)}">${esc(desc)}</span>
+          ${count > 0 ? `<span class="count-pill" title="Done ${count} time${count!==1?'s':''}">${count}×</span>` : ''}
           ${meta ? `<span class="sched-meta">${esc(meta)}</span>` : ''}
           <span class="sched-dur">${dur}</span>
           ${schedLinkBtn(c, name)}
