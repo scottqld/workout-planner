@@ -132,6 +132,13 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .sched-item:hover { background: #fafcfa; }
 .sched-item.ti-editable { cursor: pointer; }
 .sched-item.ti-editable:hover { background: #eef7ee !important; }
+.ti-picker  { position:absolute;top:calc(100% + 2px);left:0;right:0;background:#fff;border:1px solid #bcd;border-radius:6px;max-height:260px;overflow-y:auto;z-index:200;box-shadow:0 4px 14px rgba(0,0,0,.14);display:none; }
+.ti-pick-item { display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;border-bottom:1px solid #f5f5f5;user-select:none; }
+.ti-pick-item:last-child { border-bottom:none; }
+.ti-pick-item:hover,.ti-pick-item.ti-pick-active { background:#eef7ee; }
+.ti-pick-name  { flex:1;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+.ti-pick-count { font-size:11px;color:#4a7c4e;background:#eaf3ea;border-radius:8px;padding:1px 5px;flex-shrink:0;font-weight:600; }
+.ti-pick-desc  { font-size:11px;color:#bbb;flex-shrink:0;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
 .sched-name  { flex: 1; font-size: 13px; min-width: 0; overflow: hidden; }
 .sched-meta  { font-size: 12px; color: #888; flex-shrink: 0; }
 .sched-dur   { font-size: 12px; color: #555; width: 46px; text-align: right; flex-shrink: 0; }
@@ -393,7 +400,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.26'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.27'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -1658,13 +1665,95 @@ function renderSchedule() {
 }
 
 // ── Inline timetable editing ───────────────────────────────────────────────
-function tiDatalistHtml(id) {
-  return `<datalist id="${id}">${[...buildClassMap().keys()].sort().map(k=>`<option value="${esc(k)}">`).join('')}</datalist>`;
+// Build sorted class list for the picker (most-done first)
+function tiPickerItems(q) {
+  const counts = {};
+  logData.forEach(e => { const k=(e['class']||'').trim().toLowerCase(); if(k) counts[k]=(counts[k]||0)+1; });
+  const cm = buildClassMap();
+  let items = [...cm.entries()].map(([k,c]) => ({ name:c.name, key:k, count:counts[k]||0, desc:c.description||'' }));
+  items.sort((a,b) => b.count - a.count || a.name.localeCompare(b.name));
+  if (q) { const lq=q.toLowerCase(); items = items.filter(c=>c.key.includes(lq)||c.desc.toLowerCase().includes(lq)); }
+  return items.slice(0, 60);
+}
+
+function tiPickerFilter(inputId, pickerId) {
+  const inp  = document.getElementById(inputId);
+  const pick = document.getElementById(pickerId);
+  if (!inp || !pick) return;
+  const items = tiPickerItems(inp.value);
+  if (!items.length) { pick.style.display='none'; return; }
+  pick._active = -1;
+  pick.innerHTML = items.map(c =>
+    `<div class="ti-pick-item" data-name="${esc(c.name)}"
+          onmousedown="tiPickerSelect('${inputId}','${pickerId}','${esc(c.name).replace(/'/g,"\\'")}')">
+       <span class="ti-pick-name">${esc(c.name)}</span>
+       ${c.count>0 ? `<span class="ti-pick-count">${c.count}×</span>` : ''}
+       ${c.desc ? `<span class="ti-pick-desc">${esc(c.desc)}</span>` : ''}
+     </div>`
+  ).join('');
+  pick.style.display = 'block';
+}
+
+function tiPickerSelect(inputId, pickerId, name) {
+  const inp = document.getElementById(inputId);
+  if (inp) { inp.value = name; inp.focus(); }
+  const pick = document.getElementById(pickerId);
+  if (pick) pick.style.display = 'none';
+}
+
+function tiPickerHide(pickerId) {
+  const pick = document.getElementById(pickerId);
+  if (pick) pick.style.display = 'none';
+}
+
+// Returns true if a key was handled (arrow nav or Enter-selected-item)
+function tiPickerKey(event, inputId, pickerId) {
+  const pick = document.getElementById(pickerId);
+  if (!pick || pick.style.display === 'none') return false;
+  const items = pick.querySelectorAll('.ti-pick-item');
+  let active = pick._active ?? -1;
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    active = Math.min(active+1, items.length-1);
+    pick._active = active;
+    items.forEach((it,i) => it.classList.toggle('ti-pick-active', i===active));
+    items[active]?.scrollIntoView({ block:'nearest' });
+    return true;
+  }
+  if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    active = Math.max(active-1, 0);
+    pick._active = active;
+    items.forEach((it,i) => it.classList.toggle('ti-pick-active', i===active));
+    items[active]?.scrollIntoView({ block:'nearest' });
+    return true;
+  }
+  if (event.key === 'Enter' && active >= 0 && items[active]) {
+    event.preventDefault();
+    const inp = document.getElementById(inputId);
+    if (inp) inp.value = items[active].dataset.name;
+    pick.style.display = 'none'; pick._active = -1;
+    return true;
+  }
+  return false;
+}
+
+function tiPickerInputHtml(inputId, pickerId, value, onEnter, onEsc) {
+  return `<div style="position:relative;flex:1;min-width:0">
+    <input id="${inputId}" class="search" value="${esc(value)}" autocomplete="off" style="width:100%;font-size:13px;box-sizing:border-box"
+           oninput="tiPickerFilter('${inputId}','${pickerId}')"
+           onfocus="tiPickerFilter('${inputId}','${pickerId}')"
+           onblur="setTimeout(()=>tiPickerHide('${pickerId}'),150)"
+           onkeydown="if(!tiPickerKey(event,'${inputId}','${pickerId}')){if(event.key==='Enter')${onEnter};if(event.key==='Escape')${onEsc};}">
+    <div id="${pickerId}" class="ti-picker"></div>
+  </div>`;
 }
 
 function tiStartEdit(type, day, dataIdx) {
-  const rowId = type === 'log' ? `ti-log-${dataIdx}` : `ti-sched-${day}-${dataIdx}`;
-  const row   = document.getElementById(rowId);
+  const rowId   = type === 'log' ? `ti-log-${dataIdx}` : `ti-sched-${day}-${dataIdx}`;
+  const inputId = `ti-name-${rowId}`;
+  const pickId  = `ti-pick-${rowId}`;
+  const row     = document.getElementById(rowId);
   if (!row) return;
   let curName = '', curNotes = '';
   if (type === 'sched') {
@@ -1677,17 +1766,13 @@ function tiStartEdit(type, day, dataIdx) {
   const notesHtml = type === 'log'
     ? `<input id="ti-notes-${rowId}" class="search" value="${esc(curNotes)}" placeholder="notes…"
              style="width:90px;font-size:12px"
-             onkeydown="if(event.key==='Enter')tiSaveEdit('${type}','${day}',${dataIdx});if(event.key==='Escape')renderSchedule()">`
-    : '';
-  row.innerHTML = `
-    <input id="ti-name-${rowId}" class="search" value="${esc(curName)}" list="ti-dl-${rowId}" style="flex:1;font-size:13px"
-           onkeydown="if(event.key==='Enter')tiSaveEdit('${type}','${day}',${dataIdx});if(event.key==='Escape')renderSchedule()">
-    ${tiDatalistHtml(`ti-dl-${rowId}`)}
-    ${notesHtml}
-    <button class="btn btn-primary" style="font-size:11px;padding:4px 9px" onclick="tiSaveEdit('${type}','${day}',${dataIdx})">Save</button>
-    <button class="btn btn-ghost"   style="font-size:11px;padding:4px 9px" onclick="renderSchedule()">Cancel</button>
-  `;
-  const inp = document.getElementById(`ti-name-${rowId}`);
+             onkeydown="if(!tiPickerKey(event,'${inputId}','${pickId}')){if(event.key==='Enter')tiSaveEdit('${type}','${day}',${dataIdx});if(event.key==='Escape')renderSchedule();}">` : '';
+  row.innerHTML =
+    tiPickerInputHtml(inputId, pickId, curName, `tiSaveEdit('${type}','${day}',${dataIdx})`, 'renderSchedule()')
+    + notesHtml
+    + `<button class="btn btn-primary" style="font-size:11px;padding:4px 9px" onclick="tiSaveEdit('${type}','${day}',${dataIdx})">Save</button>`
+    + `<button class="btn btn-ghost"   style="font-size:11px;padding:4px 9px" onclick="renderSchedule()">Cancel</button>`;
+  const inp = document.getElementById(inputId);
   if (inp) { inp.focus(); inp.select(); }
 }
 
@@ -1721,15 +1806,14 @@ function tiDelete(type, day, dataIdx) {
 function tiAddStart(day, isPast, dateStr) {
   const container = document.getElementById(`ti-add-${day}`);
   if (!container) return;
-  container.innerHTML = `
-    <div style="display:flex;align-items:center;gap:6px;padding:7px 14px;border-top:1px solid #eee">
-      <input id="ti-add-inp-${day}" class="search" list="ti-add-dl-${day}" placeholder="Class name…" style="flex:1;font-size:13px"
-             onkeydown="if(event.key==='Enter')tiAddSave('${day}',${isPast},'${dateStr}');if(event.key==='Escape')renderSchedule()">
-      ${tiDatalistHtml(`ti-add-dl-${day}`)}
-      <button class="btn btn-primary" style="font-size:11px;padding:4px 9px" onclick="tiAddSave('${day}',${isPast},'${dateStr}')">Add</button>
-      <button class="btn btn-ghost"   style="font-size:11px;padding:4px 9px" onclick="renderSchedule()">Cancel</button>
-    </div>`;
-  document.getElementById(`ti-add-inp-${day}`)?.focus();
+  const inputId = `ti-add-inp-${day}`;
+  const pickId  = `ti-add-pick-${day}`;
+  container.innerHTML = `<div style="display:flex;align-items:center;gap:6px;padding:7px 14px;border-top:1px solid #eee">`
+    + tiPickerInputHtml(inputId, pickId, '', `tiAddSave('${day}',${isPast},'${dateStr}')`, 'renderSchedule()')
+    + `<button class="btn btn-primary" style="font-size:11px;padding:4px 9px" onclick="tiAddSave('${day}',${isPast},'${dateStr}')">Add</button>`
+    + `<button class="btn btn-ghost"   style="font-size:11px;padding:4px 9px" onclick="renderSchedule()">Cancel</button>`
+    + `</div>`;
+  document.getElementById(inputId)?.focus();
 }
 
 function tiAddSave(day, isPast, dateStr) {
