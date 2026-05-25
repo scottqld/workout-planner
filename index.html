@@ -164,6 +164,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
     <button class="nav-btn active" onclick="showTab('schedule')">Timetable</button>
     <button class="nav-btn" onclick="showTab('log')">Log</button>
     <div class="nav-sep"></div>
+    <button class="nav-btn" onclick="openSuggest()" title="Suggest a class">🎲 Suggest</button>
     <button class="nav-btn" onclick="openBackup()" title="Backup / Restore data">⬇ Backup</button>
     <button class="nav-btn" onclick="lock()" title="Lock" style="font-size:15px;padding:6px 8px;opacity:.7">🔒</button>
   </nav>
@@ -330,13 +331,29 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
   </div>
 </div>
 
+<!-- ── Suggest modal ── -->
+<div class="overlay" id="ov-suggest">
+  <div class="modal">
+    <h3>Suggest a class</h3>
+    <div class="field">
+      <label>Category</label>
+      <select id="sug-cat" onchange="refreshSuggestPool()"></select>
+    </div>
+    <div id="sug-out" style="min-height:110px"></div>
+    <div class="modal-actions" style="justify-content:space-between">
+      <button id="sug-another" class="btn btn-ghost" onclick="suggestAnother()">🎲 Another</button>
+      <button class="btn btn-ghost" onclick="closeOverlay('ov-suggest')">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- hidden file input for CSV import -->
 <input type="file" id="file-picker" accept=".csv,.txt" style="display:none" onchange="handleFilePick(this)">
 
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.17'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.18'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -355,7 +372,9 @@ let urls     = [];
 let logData  = [];
 let schedule = {};
 let editTarget = null;
-let logEditIdx = null;
+let logEditIdx  = null;
+let suggestIdx  = 0;
+let suggestPool = [];
 let schedWeekOffset = 0;
 
 // ── Boot ───────────────────────────────────────────────────────────────────
@@ -1408,10 +1427,95 @@ function setAllCats(open) {
   document.querySelectorAll('#classes-out .cat-body').forEach(b => b.style.display = open ? '' : 'none');
   document.querySelectorAll('#classes-out .cat-toggle').forEach(t => t.textContent = open ? '▾' : '▸');
 }
+// ── Suggest ────────────────────────────────────────────────────────────────
+function openSuggest() {
+  const nameMap = buildClassMap();
+  const cats = [...new Set([...nameMap.values()].map(c => c.category).filter(Boolean))]
+    .sort((a, b) => {
+      const ai = CAT_ORDER.indexOf(a), bi = CAT_ORDER.indexOf(b);
+      return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi) || a.localeCompare(b);
+    });
+  document.getElementById('sug-cat').innerHTML =
+    `<option value="">Any category</option>` +
+    cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  suggestIdx = 0;
+  refreshSuggestPool();
+  openOverlay('ov-suggest');
+}
+
+function refreshSuggestPool() {
+  const cat     = document.getElementById('sug-cat').value;
+  const nameMap = buildClassMap();
+  const lastDone = {}, counts = {};
+  for (const e of logData) {
+    const n = (e['class'] || '').trim(); if (!n) continue;
+    counts[n] = (counts[n] || 0) + 1;
+    if (e.date && (!lastDone[n] || e.date > lastDone[n])) lastDone[n] = e.date;
+  }
+  let pool = [...nameMap.values()];
+  if (cat) pool = pool.filter(c => c.category === cat);
+  pool.sort((a, b) => {
+    const da = lastDone[a.name], db = lastDone[b.name];
+    if (!da && !db) return 0;
+    if (!da) return -1;   // never done → front
+    if (!db) return 1;
+    return da.localeCompare(db); // oldest first
+  });
+  suggestPool = pool;
+  suggestIdx  = 0;
+  renderSuggestionCard();
+}
+
+function renderSuggestionCard() {
+  const out = document.getElementById('sug-out');
+  if (!suggestPool.length) {
+    out.innerHTML = '<p style="color:#999;text-align:center;padding:20px 0">No classes found.</p>';
+    document.getElementById('sug-another').style.display = 'none';
+    return;
+  }
+  document.getElementById('sug-another').style.display = '';
+  const c = suggestPool[suggestIdx % suggestPool.length];
+  const lastDone = {}, counts = {};
+  for (const e of logData) {
+    const n = (e['class'] || '').trim(); if (!n) continue;
+    counts[n] = (counts[n] || 0) + 1;
+    if (e.date && (!lastDone[n] || e.date > lastDone[n])) lastDone[n] = e.date;
+  }
+  const ld   = lastDone[c.name];
+  const days = ld ? Math.floor((Date.now() - new Date(ld)) / 86400000) : null;
+  const cnt  = counts[c.name] || 0;
+  const pos  = (suggestIdx % suggestPool.length) + 1;
+  const linkBtn = c.url
+    ? `<a href="${esc(c.url)}" target="_blank" rel="noopener" class="btn btn-primary" style="font-size:13px">▶ Play</a>`
+    : `<a href="https://drive.google.com/drive/search?q=${encodeURIComponent(c.name)}&driveId=${DRIVE_FOLDER_ID}" target="_blank" rel="noopener" class="btn btn-ghost" style="font-size:13px">📁 Find in Drive</a>`;
+  const lastStr = days === null
+    ? `<span style="color:#2e6b30;font-weight:500">✨ Never done</span>`
+    : `Last done ${fmtDate(ld)} <span style="color:#aaa">(${days} day${days !== 1 ? 's' : ''} ago)</span>`;
+  out.innerHTML = `
+    <div style="background:#f4f9f4;border-radius:8px;padding:16px;margin-bottom:14px">
+      <div style="font-size:15px;font-weight:600;color:#222;margin-bottom:4px">${esc(c.name)}</div>
+      ${c.description ? `<div style="font-size:13px;color:#666;margin-bottom:10px;font-style:italic">${esc(c.description)}</div>` : ''}
+      <div style="display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:#666">
+        ${fmtDur(c.duration) ? `<span>⏱ <strong>${fmtDur(c.duration)}</strong></span>` : ''}
+        <span>${lastStr}</span>
+        ${cnt > 0 ? `<span>Done <strong>${cnt}×</strong></span>` : ''}
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      ${linkBtn}
+      <span style="margin-left:auto;font-size:11px;color:#bbb">${pos} / ${suggestPool.length}</span>
+    </div>`;
+}
+
+function suggestAnother() {
+  suggestIdx++;
+  renderSuggestionCard();
+}
+
 function openOverlay(id)  { document.getElementById(id).classList.add('open'); }
 function closeOverlay(id) { document.getElementById(id).classList.remove('open'); }
 document.addEventListener('click', e => {
-  ['ov-class','ov-import','ov-backup','ov-log'].forEach(id => {
+  ['ov-class','ov-import','ov-backup','ov-log','ov-suggest'].forEach(id => {
     if (e.target === document.getElementById(id)) closeOverlay(id);
   });
 });
