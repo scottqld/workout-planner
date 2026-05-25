@@ -453,7 +453,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.43'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.44'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -2188,12 +2188,12 @@ function renderDayCatList() {
   let pool = [...nameMap.values()];
   if (dayCatSelected) pool = pool.filter(c => c.category === dayCatSelected);
   if (q) pool = pool.filter(c => c.name.toLowerCase().includes(q));
-  // Sort: most recently done first, never-done at bottom
+  // Sort: never-done first, then least recently done, most recently done last
   pool.sort((a, b) => {
     const la = lastDone[a.name] || '', lb = lastDone[b.name] || '';
     if (!la && !lb) return a.name.localeCompare(b.name);
-    if (!la) return 1; if (!lb) return -1;
-    return lb.localeCompare(la);
+    if (!la) return -1; if (!lb) return 1;
+    return la.localeCompare(lb);
   });
   const el = document.getElementById('day-cat-list');
   if (!pool.length) {
