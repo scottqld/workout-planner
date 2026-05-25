@@ -70,6 +70,13 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .class-last   { font-size: 12px; color: #888; width: 90px; text-align: right; flex-shrink: 0; }
 .class-last.overdue { color: #c0392b; font-weight: 500; }
 .class-last.never   { color: #aaa; font-style: italic; }
+.col-head { display: flex; align-items: center; padding: 4px 14px; gap: 8px; border-bottom: 1px solid #e8eee8; margin-bottom: 2px; }
+.col-head span { font-size: 11px; color: #aaa; font-weight: 500; text-transform: uppercase; letter-spacing: .04em; }
+.col-head .ch-name { flex: 1; }
+.col-head .ch-dur  { width: 46px; text-align: right; flex-shrink: 0; }
+.col-head .ch-tags { width: 80px; flex-shrink: 0; }
+.col-head .ch-last { width: 90px; text-align: right; flex-shrink: 0; }
+.col-head .ch-act  { width: 72px; flex-shrink: 0; }
 .row-actions  { display: flex; gap: 4px; flex-shrink: 0; }
 .btn-sm     { font-size: 11px; padding: 2px 7px; border-radius: 3px; cursor: pointer; border: 1px solid #ddd; background: #fff; color: #444; }
 .btn-sm:hover { background: #f5f5f5; }
@@ -452,8 +459,15 @@ function render() {
     return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi) || a.localeCompare(b);
   });
 
+  const header = cats.length ? `<div class="col-head">
+    <span class="ch-name">Class</span>
+    <span class="ch-dur">Time</span>
+    <span class="ch-tags"></span>
+    <span class="ch-last">Last done</span>
+    <span class="ch-act"></span>
+  </div>` : '';
   document.getElementById('classes-out').innerHTML = cats.length
-    ? cats.map(cat => renderCat(cat, groups[cat], lastDone)).join('')
+    ? header + cats.map(cat => renderCat(cat, groups[cat], lastDone)).join('')
     : '<div class="placeholder">No classes yet. Use Import or + Add to get started.</div>';
 }
 
