@@ -471,7 +471,7 @@ function renderCat(cat, items, lastDone) {
     return `<div class="class-row">
       <span class="class-name">${esc(c.name)}${icon}</span>
       <span class="class-dur">${fmtDur(c.duration)}</span>
-      <span class="class-tags">${renderTags(c._src === 'drive' ? c.tags : '')}</span>
+      <span class="class-tags">${renderTags(c.tags || '')}</span>
       <span class="class-last ${days===null?'never':days>60?'overdue':''}">${days===null?'never':fmtDate(ld)}</span>
       <span class="row-actions">
         <button class="btn-sm" onclick="openEdit('${c._src}',${c._idx})">Edit</button>
