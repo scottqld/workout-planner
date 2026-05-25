@@ -336,7 +336,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.15'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.16'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -1026,6 +1026,16 @@ function fmtDur(code) {
 }
 function fmtDate(iso) { return new Date(iso).toLocaleDateString('en-AU',{day:'numeric',month:'short'}); }
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function durToMins(code) {
+  if (!code) return 0;
+  const s = String(code);
+  if (s.length < 3) return parseInt(s, 10) || 0;
+  return (parseInt(s.slice(0, -2), 10) || 0) + (parseInt(s.slice(-2), 10) || 0) / 60;
+}
+function fmtMins(m) {
+  const h = Math.floor(m / 60), r = Math.round(m % 60);
+  return h === 0 ? `${r}m` : r === 0 ? `${h}h` : `${h}h ${r}m`;
+}
 
 // ── UI ─────────────────────────────────────────────────────────────────────
 function showTab(name) {
@@ -1113,12 +1123,40 @@ function renderSchedule() {
   const todayMid   = new Date(); todayMid.setHours(0,0,0,0);
   const isoDate    = dt => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
 
-  const nav = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+  // ── Weekly totals ──────────────────────────────────────────────────────────
+  let doneCnt = 0, schedCnt = 0, totalMins = 0;
+  for (const day of DAYS) {
+    const dt = datemap[day];
+    if (dt < todayMid) {
+      const entries = dateLogMap.get(isoDate(dt)) || [];
+      doneCnt += entries.length;
+      for (const entry of entries) {
+        const c = classMap.get((entry['class']||'').toLowerCase().trim());
+        totalMins += c ? durToMins(c.duration) : 0;
+      }
+    } else {
+      const items = schedule[day] || [];
+      schedCnt += items.length;
+      for (const name of items) {
+        const c = classMap.get((name||'').toLowerCase().trim());
+        totalMins += c ? durToMins(c.duration) : 0;
+      }
+    }
+  }
+  const summaryParts = [];
+  if (doneCnt)  summaryParts.push(`${doneCnt} done`);
+  if (schedCnt) summaryParts.push(`${schedCnt} scheduled`);
+  if (totalMins > 0) summaryParts.push(fmtMins(totalMins));
+  const summaryLine = summaryParts.length
+    ? `<div style="text-align:center;font-size:12px;color:#888;margin-top:-8px;margin-bottom:14px">${summaryParts.join(' · ')}</div>`
+    : '';
+
+  const nav = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
     <button class="btn btn-ghost" style="font-size:13px;padding:6px 12px" onclick="schedWeekOffset--;renderSchedule()">‹ Prev</button>
     <span style="flex:1;text-align:center;font-weight:600;font-size:15px;color:#2e6b30">Week ${week} &middot; ${year}</span>
     ${atToday ? '<span style="min-width:68px"></span>' : '<button class="btn btn-ghost" style="font-size:12px;padding:6px 10px;min-width:68px" onclick="schedWeekOffset=0;renderSchedule()">This week</button>'}
     <button class="btn btn-ghost" style="font-size:13px;padding:6px 12px" onclick="schedWeekOffset++;renderSchedule()">Next ›</button>
-  </div>`;
+  </div>${summaryLine}`;
 
   const cards = DAYS.map(day => {
     const dt     = datemap[day];
