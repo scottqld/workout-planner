@@ -400,7 +400,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.35'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.36'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -419,7 +419,6 @@ let urls          = [];
 let logData       = [];
 let schedule      = {};
 let dateOverrides = {};   // 'YYYY-MM-DD' → string[]  (per-date class list for that specific date)
-let rotation      = {};   // category → next rotation index (persisted so it advances across weeks)
 let editTarget = null;
 let logEditIdx    = null;
 let dayEditState  = null;   // { day, isPast, dateStr }
@@ -630,7 +629,6 @@ function loadFromStorage() {
       localStorage.setItem('wp-schedule', JSON.stringify(schedule));
     }
     try { dateOverrides = JSON.parse(localStorage.getItem('wp-overrides') || '{}'); } catch { dateOverrides = {}; }
-    try { rotation     = JSON.parse(localStorage.getItem('wp-rotation')  || '{}'); } catch { rotation     = {}; }
     return;
   }
   const raw = k => { try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch { return []; } };
@@ -671,9 +669,6 @@ function persistOverrides() {
   localStorage.setItem('wp-overrides', JSON.stringify(dateOverrides));
 }
 
-function persistRotation() {
-  localStorage.setItem('wp-rotation', JSON.stringify(rotation));
-}
 
 // One-time repair: remove schedule-generated entries that were retroactively
 // written into the log before this feature was scoped to current-week only.
@@ -1845,56 +1840,53 @@ function tiDeleteDateEntry(dateStr, day, idx) {
   renderSchedule();
 }
 
-// Auto-generate a week's classes by rotating through each day's category.
-// The schedule template defines which category belongs on each day of the week;
-// rotation advances a persistent per-category index so every class eventually gets used.
+// Auto-generate a week's classes from the full library.
+// Priority: least-used classes first, with random jitter so the same
+// never-done pool produces a different order each time the button is pressed.
+// Score = count×10000 − daysSinceLastDone + rand(500)
+// → never-done classes always beat done ones; rarely-done old classes beat
+//   frequently-done recent ones; jitter randomises within each priority band.
 function autoGenWeek() {
-  const isoD     = dt => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+  const isoDate  = dt => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
   const todayMid = new Date(); todayMid.setHours(0,0,0,0);
+  const now      = todayMid.getTime();
   const { map: dm } = weekDates(schedWeekOffset);
   const classMap = buildClassMap();
 
-  // Build sorted class list per category (both Drive files and URL classes)
-  const catGroups = {};
-  for (const c of classMap.values()) {
-    const cat = (c.category || '').toLowerCase().trim();
-    if (!cat) continue;
-    (catGroups[cat] = catGroups[cat] || []).push(c);
-  }
-  for (const cat of Object.keys(catGroups)) {
-    catGroups[cat].sort((a, b) => a.name.localeCompare(b.name));
-  }
-
-  // Pick next class for a category and advance the rotation index.
-  function nextInCategory(cat) {
-    const list = catGroups[(cat||'').toLowerCase().trim()] || [];
-    if (!list.length) return null;
-    const key = (cat||'').toLowerCase().trim();
-    const idx  = (rotation[key] || 0) % list.length;
-    rotation[key] = (rotation[key] || 0) + 1;
-    return list[idx].name;
+  // Build usage index from log
+  const usage = {};
+  for (const e of logData) {
+    if (!e.class || !e.date) continue;
+    const k = e.class.toLowerCase().trim();
+    if (!usage[k]) usage[k] = { count: 0, lastDone: '' };
+    usage[k].count++;
+    if (e.date > usage[k].lastDone) usage[k].lastDone = e.date;
   }
 
-  let filled = 0;
+  // Score and shuffle the full class library
+  const pool = [...classMap.values()]
+    .map(c => {
+      const u          = usage[c.name.toLowerCase().trim()];
+      const count      = u?.count || 0;
+      const daysSince  = u?.lastDone
+        ? Math.floor((now - new Date(u.lastDone + 'T00:00:00').getTime()) / 86400000)
+        : 9999;
+      return { name: c.name, score: count * 10000 - daysSince + Math.random() * 500 };
+    })
+    .sort((a, b) => a.score - b.score);   // ascending: best candidates first
+
+  // Assign one class to every non-past day; no repeats within the week
+  let poolIdx = 0;
   for (const day of DAYS) {
-    const dt = dm[day];
+    const dt      = dm[day];
     if (dt < todayMid) continue;
-    const templateClasses = schedule[day] || [];
-    if (!templateClasses.length) continue;   // day has no category defined — skip
-
-    dateOverrides[isoD(dt)] = templateClasses.map(templateClass => {
-      const c   = classMap.get(templateClass.toLowerCase().trim());
-      const cat = c?.category;
-      return nextInCategory(cat) || templateClass;  // fallback: reuse template class
-    });
-    filled++;
+    if (poolIdx >= pool.length) break;
+    dateOverrides[isoDate(dt)] = [pool[poolIdx++].name];
   }
 
   persistOverrides();
-  persistRotation();
   renderSchedule();
-  if (filled) showOk('Week generated — classes rotated through each category');
-  else showOk('No days to fill (add classes to the schedule template first)');
+  showOk('Week generated — least-used classes prioritised');
 }
 
 function tiAddStart(day, isPast, dateStr) {
