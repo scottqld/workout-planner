@@ -969,6 +969,16 @@ function buildClassMap() {
   return m;
 }
 
+function buildDateLogMap() {
+  const m = new Map();
+  for (const e of logData) {
+    if (!e.date) continue;
+    if (!m.has(e.date)) m.set(e.date, []);
+    m.get(e.date).push(e);
+  }
+  return m;
+}
+
 function isoWeekNumber(date) {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
@@ -996,13 +1006,25 @@ function isToday(dt) {
   return dt.getFullYear() === t.getFullYear() && dt.getMonth() === t.getMonth() && dt.getDate() === t.getDate();
 }
 
+function schedLinkBtn(c, name) {
+  if (c?.url) return `<a href="${esc(c.url)}" target="_blank" class="class-link-btn" title="Play">▶</a>`;
+  if (c?._src === 'drive') {
+    const q = encodeURIComponent(name);
+    return `<a href="https://drive.google.com/drive/search?q=${q}&driveId=${DRIVE_FOLDER_ID}" target="_blank" class="class-link-btn drive" title="Find in Drive">📁</a>`;
+  }
+  return '';
+}
+
 function renderSchedule() {
   const { monday, map: datemap } = weekDates(schedWeekOffset);
   const { week, year } = isoWeekNumber(monday);
-  const classMap = buildClassMap();
-  const allNames = [...classMap.keys()].sort();
-  const dayFmt   = dt => dt.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
-  const atToday  = schedWeekOffset === 0;
+  const classMap   = buildClassMap();
+  const dateLogMap = buildDateLogMap();
+  const allNames   = [...classMap.keys()].sort();
+  const dayFmt     = dt => dt.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+  const atToday    = schedWeekOffset === 0;
+  const todayMid   = new Date(); todayMid.setHours(0,0,0,0);
+  const isoDate    = dt => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
 
   const nav = `<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
     <button class="btn btn-ghost" style="font-size:13px;padding:6px 12px" onclick="schedWeekOffset--;renderSchedule()">‹ Prev</button>
@@ -1012,51 +1034,75 @@ function renderSchedule() {
   </div>`;
 
   const cards = DAYS.map(day => {
-    const dt    = datemap[day];
-    const today = isToday(dt);
-    const items = (schedule[day] || []);
+    const dt     = datemap[day];
+    const today  = isToday(dt);
+    const isPast = dt < todayMid;
+    const dateStr = isoDate(dt);
 
-    const rows = items.map((name, idx) => {
-      const c    = classMap.get((name||'').toLowerCase().trim());
-      const desc = c?.description || name;
-      const meta = [c?.classType, c?.instructor].filter(Boolean).join(' · ');
-      const dur  = c ? fmtDur(c.duration) : '';
-      let linkBtn = '';
-      if (c?.url) {
-        linkBtn = `<a href="${esc(c.url)}" target="_blank" class="class-link-btn" title="Play">▶</a>`;
-      } else if (c?._src === 'drive') {
-        const q = encodeURIComponent(c.name);
-        linkBtn = `<a href="https://drive.google.com/drive/search?q=${q}&driveId=${DRIVE_FOLDER_ID}" target="_blank" class="class-link-btn drive" title="Find in Drive">📁</a>`;
+    let rows, addSection = '';
+
+    if (isPast) {
+      // ── Past day: show what was actually logged ──────────────────────────
+      const logEntries = dateLogMap.get(dateStr) || [];
+      if (logEntries.length === 0) {
+        rows = '<div class="sched-empty">No activity logged</div>';
+      } else {
+        rows = logEntries.map(entry => {
+          const name = entry.class || '';
+          const c    = classMap.get(name.toLowerCase().trim());
+          const desc = c?.description || name;
+          const dur  = c ? fmtDur(c.duration) : '';
+          return `<div class="sched-item">
+            <span style="color:#2e6b30;font-size:13px;flex-shrink:0;margin-right:2px">✓</span>
+            <span class="sched-name" title="${esc(name)}">${esc(desc)}</span>
+            ${entry.notes ? `<span class="sched-meta">${esc(entry.notes)}</span>` : ''}
+            <span class="sched-dur">${dur}</span>
+            ${schedLinkBtn(c, name)}
+          </div>`;
+        }).join('');
       }
-      return `<div class="sched-item">
-        <span class="sched-name" title="${esc(name)}">${esc(desc)}</span>
-        ${meta ? `<span class="sched-meta">${esc(meta)}</span>` : ''}
-        <span class="sched-dur">${dur}</span>
-        ${linkBtn}
-        <button class="btn-sm btn-del" onclick="removeScheduleItem('${day}',${idx})">×</button>
-      </div>`;
-    }).join('');
+    } else {
+      // ── Today / future: show weekly template ────────────────────────────
+      const items = schedule[day] || [];
+      rows = items.map((name, idx) => {
+        const c    = classMap.get((name||'').toLowerCase().trim());
+        const desc = c?.description || name;
+        const meta = [c?.classType, c?.instructor].filter(Boolean).join(' · ');
+        const dur  = c ? fmtDur(c.duration) : '';
+        return `<div class="sched-item">
+          <span class="sched-name" title="${esc(name)}">${esc(desc)}</span>
+          ${meta ? `<span class="sched-meta">${esc(meta)}</span>` : ''}
+          <span class="sched-dur">${dur}</span>
+          ${schedLinkBtn(c, name)}
+          <button class="btn-sm btn-del" onclick="removeScheduleItem('${day}',${idx})">×</button>
+        </div>`;
+      }).join('') || '<div class="sched-empty">Rest day</div>';
 
-    const opts = allNames.map(n => `<option value="${esc(n)}">`).join('');
-    const headBg = today ? 'background:#d4edda' : '';
-    const todayBadge = today ? '<span style="font-size:11px;background:#2e6b30;color:#fff;border-radius:4px;padding:1px 6px;margin-left:8px">Today</span>' : '';
-
-    return `<div class="cat-card" style="margin-bottom:10px">
-      <div class="sched-day-head" style="${headBg}">
-        <span class="sched-day-name">${DAY_LABELS[day]}${todayBadge}</span>
-        <span style="font-size:12px;color:#666;margin-right:10px">${dayFmt(dt)}</span>
-        <button class="btn btn-ghost" style="font-size:12px;padding:5px 10px" onclick="showSchedAdd('${day}')">+ Add</button>
-      </div>
-      <div>
-        ${rows || '<div class="sched-empty">Rest day</div>'}
-        <div class="sched-add-row" id="sched-add-${day}">
+      const opts = allNames.map(n => `<option value="${esc(n)}">`).join('');
+      addSection = `<div class="sched-add-row" id="sched-add-${day}">
           <input class="search" id="sched-input-${day}" list="sched-list-${day}"
             placeholder="Type class name…" style="flex:1;font-size:13px;padding:6px 10px"
             onkeydown="if(event.key==='Enter')confirmSchedAdd('${day}');if(event.key==='Escape')hideSchedAdd('${day}')">
           <datalist id="sched-list-${day}">${opts}</datalist>
           <button class="btn btn-primary" style="font-size:12px;padding:6px 10px" onclick="confirmSchedAdd('${day}')">Add</button>
           <button class="btn btn-ghost"   style="font-size:12px;padding:6px 10px" onclick="hideSchedAdd('${day}')">Cancel</button>
-        </div>
+        </div>`;
+    }
+
+    const headBg     = today ? 'background:#d4edda' : isPast ? 'background:#f5f5f5' : '';
+    const dayColor   = isPast ? 'color:#999' : '';
+    const todayBadge = today ? '<span style="font-size:11px;background:#2e6b30;color:#fff;border-radius:4px;padding:1px 6px;margin-left:8px">Today</span>' : '';
+    const addBtn     = !isPast ? `<button class="btn btn-ghost" style="font-size:12px;padding:5px 10px" onclick="showSchedAdd('${day}')">+ Add</button>` : '';
+
+    return `<div class="cat-card" style="margin-bottom:10px">
+      <div class="sched-day-head" style="${headBg}">
+        <span class="sched-day-name" style="${dayColor}">${DAY_LABELS[day]}${todayBadge}</span>
+        <span style="font-size:12px;color:#999;margin-right:10px">${dayFmt(dt)}</span>
+        ${addBtn}
+      </div>
+      <div>
+        ${rows}
+        ${addSection}
       </div>
     </div>`;
   }).join('');
