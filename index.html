@@ -10,31 +10,22 @@ body { font-family: system-ui, -apple-system, sans-serif; background: #f0f4f0; c
 
 /* ── PIN screen ── */
 #screen-pin { display: none; align-items: center; justify-content: center; min-height: 100vh; }
-.pin-box { background: #fff; border-radius: 12px; padding: 40px; text-align: center; box-shadow: 0 2px 12px rgba(0,0,0,.1); max-width: 320px; width: 92%; }
+.pin-box { background: #fff; border-radius: 12px; padding: 40px; text-align: center; box-shadow: 0 2px 12px rgba(0,0,0,.1); max-width: 300px; width: 92%; }
 .pin-box h1 { color: #2e6b30; font-size: 22px; margin-bottom: 10px; }
 .pin-box p  { color: #666; font-size: 14px; margin-bottom: 20px; }
-.pin-box input { width: 100%; padding: 12px; font-size: 20px; text-align: center; letter-spacing: 6px; border: 2px solid #cdd; border-radius: 8px; outline: none; margin-bottom: 12px; }
+.pin-box input { width: 100%; padding: 12px; font-size: 22px; text-align: center; letter-spacing: 8px; border: 2px solid #cdd; border-radius: 8px; outline: none; margin-bottom: 12px; }
 .pin-box input:focus { border-color: #2e6b30; }
 .pin-box .btn-pin { width: 100%; background: #2e6b30; color: #fff; border: none; padding: 12px; border-radius: 8px; font-size: 15px; cursor: pointer; }
 .pin-box .btn-pin:hover { background: #256027; }
 .pin-err { color: #c0392b; font-size: 13px; margin-top: 8px; min-height: 18px; }
 
-/* ── Folder picker screen ── */
-#screen-folder { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-.folder-box { background: #fff; border-radius: 12px; padding: 40px; text-align: center; box-shadow: 0 2px 12px rgba(0,0,0,.1); max-width: 380px; width: 92%; }
-.folder-box h1 { color: #2e6b30; font-size: 22px; margin-bottom: 10px; }
-.folder-box p  { color: #666; font-size: 14px; line-height: 1.6; margin-bottom: 8px; }
-.folder-box .hint { color: #999; font-size: 12px; margin-top: 16px; margin-bottom: 0; }
-.folder-box .btn-folder { margin-top: 24px; background: #2e6b30; color: #fff; border: none; padding: 12px 28px; border-radius: 8px; font-size: 15px; cursor: pointer; }
-.folder-box .btn-folder:hover { background: #256027; }
-
 /* ── Nav ── */
-nav { background: #2e6b30; color: #fff; padding: 0 16px; display: flex; align-items: center; gap: 4px; height: 48px; }
+nav { background: #2e6b30; color: #fff; padding: 0 12px; display: flex; align-items: center; gap: 2px; height: 48px; }
 nav h1 { font-size: 16px; font-weight: 600; flex: 1; }
-.nav-btn { background: transparent; border: none; color: rgba(255,255,255,.75); padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+.nav-btn { background: transparent; border: none; color: rgba(255,255,255,.75); padding: 6px 11px; border-radius: 4px; cursor: pointer; font-size: 13px; }
 .nav-btn:hover  { background: rgba(255,255,255,.12); color: #fff; }
 .nav-btn.active { background: rgba(255,255,255,.2); color: #fff; font-weight: 500; }
-.folder-name { font-size: 11px; color: rgba(255,255,255,.5); margin-right: 8px; }
+.nav-sep { width: 1px; background: rgba(255,255,255,.2); height: 20px; margin: 0 4px; }
 
 /* ── Main ── */
 main { max-width: 940px; margin: 0 auto; padding: 16px; }
@@ -85,7 +76,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .btn-del    { color: #b71c1c; border-color: #f2b0b0; }
 .btn-del:hover { background: #fff5f5; }
 
-/* ── Placeholder / loading ── */
+/* ── Placeholder ── */
 .placeholder { padding: 40px; text-align: center; color: #999; font-size: 13px; }
 
 /* ── Modal ── */
@@ -102,7 +93,8 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .field-row { display: flex; gap: 10px; }
 .field-row .field { flex: 1; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
-.hint { font-size: 11px; color: #999; margin-top: 3px; }
+.hint { font-size: 11px; color: #999; margin-top: 4px; }
+.divider { border: none; border-top: 1px solid #eee; margin: 16px 0; }
 </style>
 </head>
 <body>
@@ -120,27 +112,16 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
   </div>
 </div>
 
-<!-- ── Folder picker screen ── -->
-<div id="screen-folder">
-  <div class="folder-box">
-    <h1>Workout Planner</h1>
-    <p>Choose the folder where your workout data will be stored.</p>
-    <p>Your data is saved as <strong>CSV files</strong> — open them any time in Google Sheets or Excel.</p>
-    <button class="btn-folder" onclick="pickFolder()">Select folder…</button>
-    <p class="hint" id="folder-err"></p>
-    <p class="hint">Tip: pick your Google Drive sync folder for automatic backup.</p>
-  </div>
-</div>
-
 <!-- ── App ── -->
 <div id="screen-app" style="display:none">
   <nav>
     <h1>Workout Planner</h1>
-    <span class="folder-name" id="folder-name"></span>
     <button class="nav-btn active" onclick="showTab('classes')">Classes</button>
     <button class="nav-btn" onclick="showTab('schedule')">Schedule</button>
     <button class="nav-btn" onclick="showTab('log')">Log</button>
-    <button class="nav-btn" onclick="lock()" title="Lock app" style="opacity:.6;font-size:15px;padding:6px 8px">🔒</button>
+    <div class="nav-sep"></div>
+    <button class="nav-btn" onclick="openBackup()" title="Backup / Restore data">⬇ Backup</button>
+    <button class="nav-btn" onclick="lock()" title="Lock" style="font-size:15px;padding:6px 8px;opacity:.7">🔒</button>
   </nav>
   <main>
     <div id="status" class="status"></div>
@@ -155,12 +136,9 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
       <div id="classes-out"><div class="placeholder">Loading…</div></div>
     </div>
 
-    <!-- Schedule tab stub -->
     <div id="tab-schedule" style="display:none">
       <div class="placeholder">Schedule — coming soon</div>
     </div>
-
-    <!-- Log tab stub -->
     <div id="tab-log" style="display:none">
       <div class="placeholder">Log — coming soon</div>
     </div>
@@ -218,16 +196,21 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
     <div class="field">
       <label>Import into</label>
       <select id="m-import-sheet">
-        <option value="files">files.csv — Google Drive video list</option>
-        <option value="urls">urls.csv — Online video list</option>
-        <option value="log">log.csv — Workout history</option>
+        <option value="files">files — Google Drive video list</option>
+        <option value="urls">urls — Online video list</option>
+        <option value="log">log — Workout history</option>
       </select>
     </div>
     <div class="field">
-      <label>Data</label>
-      <textarea id="m-import-text" rows="12"
+      <label>Upload a CSV file</label>
+      <input type="file" id="m-import-file" accept=".csv,.txt" style="font-size:13px">
+      <div class="hint">Or paste data below instead.</div>
+    </div>
+    <div class="field">
+      <label>Paste data</label>
+      <textarea id="m-import-text" rows="8"
         style="font-family:monospace;font-size:12px;resize:vertical"
-        placeholder="Files (one name per line):&#10;  activate 4225&#10;  ba sporting form 2707 standing&#10;&#10;URLs (name: url):&#10;  JK 35 HIIT dance: https://youtube.com/...&#10;&#10;Log (date | class name):&#10;  2026-05-11 | activate 4225"></textarea>
+        placeholder="Files — one name per line:&#10;  activate 4225&#10;  ba sporting form 2707 standing&#10;&#10;URLs — name: url:&#10;  JK 35 HIIT dance: https://youtube.com/...&#10;&#10;Log — YYYY-MM-DD | class name:&#10;  2026-05-11 | activate 4225"></textarea>
       <div class="hint">Lines starting with -- are skipped.</div>
     </div>
     <div class="modal-actions">
@@ -237,36 +220,74 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
   </div>
 </div>
 
+<!-- ── Backup / Restore modal ── -->
+<div class="overlay" id="ov-backup">
+  <div class="modal">
+    <h3>Backup &amp; Restore</h3>
+    <p style="font-size:13px;color:#555;margin-bottom:16px">
+      Download your data as CSV files — save them to Google Drive for backup.
+      Restore by importing the CSV back via the Import button.
+    </p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn btn-ghost" style="text-align:left" onclick="exportSheet('files')">⬇ Download files.csv &nbsp;<span style="color:#999;font-size:12px">(${files.length} classes)</span></button>
+      <button class="btn btn-ghost" style="text-align:left" onclick="exportSheet('urls')">⬇ Download urls.csv &nbsp;<span style="color:#999;font-size:12px">(${urls.length} classes)</span></button>
+      <button class="btn btn-ghost" style="text-align:left" onclick="exportSheet('log')">⬇ Download log.csv &nbsp;<span style="color:#999;font-size:12px">(${logData.length} entries)</span></button>
+    </div>
+    <hr class="divider">
+    <p style="font-size:12px;color:#c0392b;margin-bottom:12px">Danger zone</p>
+    <button class="btn" style="background:#fde8e8;color:#8b1c1c;width:100%" onclick="clearAllData()">Clear all data from this browser</button>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeOverlay('ov-backup')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- hidden file input for CSV import -->
+<input type="file" id="file-picker" accept=".csv,.txt" style="display:none" onchange="handleFilePick(this)">
+
 <script>
-// ── PIN — change this to whatever you want ─────────────────────────────────
-const APP_PIN = '1234';
+// ── PIN ────────────────────────────────────────────────────────────────────
+const APP_PIN = '1234'; // ← change this before deploying
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
-
-const SHEET_DEFS = {
-  files:    { file: 'files.csv',    cols: ['name','category','duration','tags','notes'] },
-  urls:     { file: 'urls.csv',     cols: ['name','category','duration','url','notes'] },
-  log:      { file: 'log.csv',      cols: ['date','class','notes'] },
-  schedule: { file: 'schedule.csv', cols: ['day','date','class','day_template','group_template'] },
-};
-
 const DEV = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 
-// ── State ──────────────────────────────────────────────────────────────────
-let dirHandle   = null;
-let files       = [];
-let urls        = [];
-let logData     = [];
-let editTarget  = null; // { src: 'drive'|'link', idx: number } or null for new
+const SHEET_DEFS = {
+  files: { key: 'wp-files', cols: ['name','category','duration','tags','notes'] },
+  urls:  { key: 'wp-urls',  cols: ['name','category','duration','url','notes']  },
+  log:   { key: 'wp-log',   cols: ['date','class','notes']                      },
+};
 
-// ── PIN auth ───────────────────────────────────────────────────────────────
+// ── State ──────────────────────────────────────────────────────────────────
+let files   = [];
+let urls    = [];
+let logData = [];
+let editTarget = null;
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  if (DEV || localStorage.getItem('wp-authed') === '1') {
+    startApp();
+  } else {
+    const s = document.getElementById('screen-pin');
+    s.style.display = 'flex';
+    document.getElementById('pin-input').focus();
+  }
+});
+
+function startApp() {
+  document.getElementById('screen-pin').style.display = 'none';
+  document.getElementById('screen-app').style.display = '';
+  loadFromStorage();
+  render();
+}
+
+// ── PIN ────────────────────────────────────────────────────────────────────
 function checkPin() {
-  const entered = document.getElementById('pin-input').value;
-  if (entered === APP_PIN) {
+  if (document.getElementById('pin-input').value === APP_PIN) {
     localStorage.setItem('wp-authed', '1');
-    document.getElementById('screen-pin').style.display = 'none';
-    init();
+    startApp();
   } else {
     document.getElementById('pin-err').textContent = 'Incorrect PIN — try again';
     document.getElementById('pin-input').value = '';
@@ -279,127 +300,25 @@ function lock() {
   location.reload();
 }
 
-// ── Boot ───────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-  if (DEV || localStorage.getItem('wp-authed') === '1') {
-    init();
-  } else {
-    const s = document.getElementById('screen-pin');
-    s.style.display = 'flex';
-    document.getElementById('pin-input').focus();
-  }
-});
-
-async function init() {
-  if (DEV) { showApp('dev'); await loadAll(); return; }
-
-  if (!('showDirectoryPicker' in window)) {
-    document.getElementById('folder-err').textContent =
-      'This app requires Chrome or Edge (File System Access API is not supported in this browser).';
+// ── Storage ────────────────────────────────────────────────────────────────
+function loadFromStorage() {
+  if (DEV) {
+    files   = DEV_FILES.map((o, i) => ({ ...o, _idx: i, _src: 'drive' }));
+    urls    = DEV_URLS.map((o, i)  => ({ ...o, _idx: i, _src: 'link'  }));
+    logData = DEV_LOG.map((o, i)   => ({ ...o, _idx: i }));
     return;
   }
-
-  // Try to restore previously selected folder from IndexedDB
-  try {
-    const saved = await dbGet('dir');
-    if (saved) {
-      let perm = await saved.queryPermission({ mode: 'readwrite' });
-      if (perm !== 'granted') perm = await saved.requestPermission({ mode: 'readwrite' });
-      if (perm === 'granted') {
-        dirHandle = saved;
-        showApp(saved.name);
-        await loadAll();
-        return;
-      }
-    }
-  } catch(_) { /* fall through to picker */ }
-
-  document.getElementById('screen-folder').style.display = '';
+  const raw = k => { try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch { return []; } };
+  files   = raw('wp-files').map((o, i) => ({ ...o, _idx: i, _src: 'drive' }));
+  urls    = raw('wp-urls').map((o, i)  => ({ ...o, _idx: i, _src: 'link'  }));
+  logData = raw('wp-log').map((o, i)   => ({ ...o, _idx: i }));
 }
 
-async function pickFolder() {
-  try {
-    const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
-    dirHandle = handle;
-    await dbPut('dir', handle);
-    await ensureCSVFiles();
-    showApp(handle.name);
-    await loadAll();
-  } catch(e) {
-    if (e.name !== 'AbortError') {
-      document.getElementById('folder-err').textContent = 'Could not open folder: ' + e.message;
-    }
-  }
-}
-
-// ── IndexedDB (persist the directory handle across page loads) ─────────────
-function openDB() {
-  return new Promise((res, rej) => {
-    const req = indexedDB.open('workout-planner', 1);
-    req.onupgradeneeded = e => e.target.result.createObjectStore('meta');
-    req.onsuccess  = e => res(e.target.result);
-    req.onerror    = ()  => rej(req.error);
-  });
-}
-async function dbGet(key) {
-  const db = await openDB();
-  return new Promise((res, rej) => {
-    const req = db.transaction('meta','readonly').objectStore('meta').get(key);
-    req.onsuccess = () => res(req.result);
-    req.onerror   = () => rej(req.error);
-  });
-}
-async function dbPut(key, val) {
-  const db = await openDB();
-  return new Promise((res, rej) => {
-    const tx = db.transaction('meta','readwrite');
-    tx.objectStore('meta').put(val, key);
-    tx.oncomplete = res;
-    tx.onerror    = () => rej(tx.error);
-  });
-}
-
-// ── File I/O ───────────────────────────────────────────────────────────────
-async function readFile(name) {
-  try {
-    const fh = await dirHandle.getFileHandle(name);
-    return await (await fh.getFile()).text();
-  } catch(e) {
-    if (e.name === 'NotFoundError') return null;
-    throw e;
-  }
-}
-
-async function writeFile(name, content) {
-  const fh = await dirHandle.getFileHandle(name, { create: true });
-  const w  = await fh.createWritable();
-  await w.write(content);
-  await w.close();
-}
-
-// Create CSV files with header rows on first use
-async function ensureCSVFiles() {
-  for (const def of Object.values(SHEET_DEFS)) {
-    if (await readFile(def.file) === null) {
-      await writeFile(def.file, def.cols.join(',') + '\n');
-    }
-  }
-  // Seed schedule template if file only has the header
-  const sched = await readFile(SHEET_DEFS.schedule.file);
-  if (!sched || sched.trim().split('\n').length < 2) {
-    const rows = [
-      ['MON','','','MON','dumbbell long'],
-      ['TUE','','','TUE','ba'],
-      ['WED','','','WED','dumbbell short'],
-      ['THU','','','THU','f&f'],
-      ['FRI','','','FRI','csc'],
-      ['SAT','','','SAT','activate k'],
-      ['SUN','','','SUN','JK'],
-    ];
-    await writeFile(SHEET_DEFS.schedule.file,
-      SHEET_DEFS.schedule.cols.join(',') + '\n' +
-      rows.map(r => r.map(csvEsc).join(',')).join('\n') + '\n');
-  }
+function persist() {
+  const strip = ({ _idx, _src, ...rest }) => rest;
+  localStorage.setItem('wp-files', JSON.stringify(files.map(strip)));
+  localStorage.setItem('wp-urls',  JSON.stringify(urls.map(strip)));
+  localStorage.setItem('wp-log',   JSON.stringify(logData.map(strip)));
 }
 
 // ── CSV ────────────────────────────────────────────────────────────────────
@@ -419,59 +338,47 @@ function parseCSV(text) {
 }
 
 function splitLine(line) {
-  const fields = [];
-  let f = '', inQ = false;
+  const fields = []; let f = '', inQ = false;
   for (let i = 0; i < line.length; i++) {
     const c = line[i];
     if      (c === '"' && inQ && line[i+1] === '"') { f += '"'; i++; }
     else if (c === '"')  { inQ = !inQ; }
     else if (c === ',' && !inQ) { fields.push(f); f = ''; }
-    else    { f += c; }
+    else { f += c; }
   }
   fields.push(f);
   return fields;
 }
 
 function toCSV(cols, rows) {
-  return [cols.join(','),
-    ...rows.map(r => cols.map(c => csvEsc(r[c] ?? '')).join(','))
-  ].join('\n') + '\n';
+  return [cols.join(','), ...rows.map(r => cols.map(c => csvEsc(r[c] ?? '')).join(','))].join('\n') + '\n';
 }
 
 function csvEsc(val) {
   const s = String(val);
-  return (s.includes(',') || s.includes('"') || s.includes('\n'))
-    ? '"' + s.replace(/"/g, '""') + '"' : s;
+  return (s.includes(',') || s.includes('"') || s.includes('\n')) ? '"' + s.replace(/"/g,'""') + '"' : s;
 }
 
-// ── Load ───────────────────────────────────────────────────────────────────
-async function loadAll() {
-  if (DEV) {
-    files   = DEV_FILES.map((o, i) => ({ ...o, _idx: i, _src: 'drive' }));
-    urls    = DEV_URLS.map((o, i)  => ({ ...o, _idx: i, _src: 'link'  }));
-    logData = DEV_LOG.map((o, i)   => ({ ...o, _idx: i }));
-    render();
-    return;
-  }
-  try {
-    const [ft, ut, lt] = await Promise.all([
-      readFile(SHEET_DEFS.files.file),
-      readFile(SHEET_DEFS.urls.file),
-      readFile(SHEET_DEFS.log.file),
-    ]);
-    files   = parseCSV(ft).map((o, i) => ({ ...o, _idx: i, _src: 'drive' }));
-    urls    = parseCSV(ut).map((o, i)  => ({ ...o, _idx: i, _src: 'link'  }));
-    logData = parseCSV(lt).map((o, i)  => ({ ...o, _idx: i }));
-    render();
-  } catch(e) {
-    showErr('Load error: ' + e.message);
-  }
+// ── Export ─────────────────────────────────────────────────────────────────
+function exportSheet(name) {
+  const def  = SHEET_DEFS[name];
+  const data = name === 'files' ? files : name === 'urls' ? urls : logData;
+  const csv  = toCSV(def.cols, data);
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })),
+    download: name + '.csv',
+  });
+  a.click();
 }
 
-// ── Save helpers ───────────────────────────────────────────────────────────
-async function saveFiles() { await writeFile(SHEET_DEFS.files.file, toCSV(SHEET_DEFS.files.cols, files)); }
-async function saveURLs()  { await writeFile(SHEET_DEFS.urls.file,  toCSV(SHEET_DEFS.urls.cols,  urls)); }
-async function saveLog()   { await writeFile(SHEET_DEFS.log.file,   toCSV(SHEET_DEFS.log.cols,   logData)); }
+function clearAllData() {
+  if (!confirm('Delete ALL data from this browser? This cannot be undone.')) return;
+  ['wp-files','wp-urls','wp-log'].forEach(k => localStorage.removeItem(k));
+  loadFromStorage();
+  render();
+  closeOverlay('ov-backup');
+  showOk('All data cleared');
+}
 
 // ── Render ─────────────────────────────────────────────────────────────────
 function render() {
@@ -487,10 +394,7 @@ function render() {
   });
 
   const groups = {};
-  list.forEach(c => {
-    const cat = c.category || 'other';
-    (groups[cat] = groups[cat] || []).push(c);
-  });
+  list.forEach(c => { const cat = c.category || 'other'; (groups[cat] = groups[cat] || []).push(c); });
 
   const cats = Object.keys(groups).sort((a, b) => {
     const ai = CAT_ORDER.indexOf(a), bi = CAT_ORDER.indexOf(b);
@@ -508,33 +412,26 @@ function renderCat(cat, items, lastDone) {
     const db = lastDone[b.name] ? +new Date(lastDone[b.name]) : 0;
     return da - db;
   });
-
-  const note = cat === 'dumbbell'
-    ? '<span class="cat-note">≥40:00 = long · &lt;40:00 = short</span>' : '';
-
+  const note = cat === 'dumbbell' ? '<span class="cat-note">≥40:00 = long · &lt;40:00 = short</span>' : '';
   const rows = sorted.map(c => {
-    const ld    = lastDone[c.name];
-    const days  = ld ? Math.floor((Date.now() - new Date(ld)) / 86400000) : null;
-    const ldTxt = days === null ? 'never' : fmtDate(ld);
-    const ldCls = days === null ? 'never' : days > 60 ? 'overdue' : '';
-    const icon  = c._src === 'link' ? ' <span class="src-icon" title="Online link">🔗</span>' : '';
-
+    const ld   = lastDone[c.name];
+    const days = ld ? Math.floor((Date.now() - new Date(ld)) / 86400000) : null;
+    const icon = c._src === 'link' ? ' <span class="src-icon" title="Online">🔗</span>' : '';
     return `<div class="class-row">
       <span class="class-name">${esc(c.name)}${icon}</span>
       <span class="class-dur">${fmtDur(c.duration)}</span>
       <span class="class-tags">${renderTags(c._src === 'drive' ? c.tags : '')}</span>
-      <span class="class-last ${ldCls}">${ldTxt}</span>
+      <span class="class-last ${days===null?'never':days>60?'overdue':''}">${days===null?'never':fmtDate(ld)}</span>
       <span class="row-actions">
         <button class="btn-sm" onclick="openEdit('${c._src}',${c._idx})">Edit</button>
         <button class="btn-sm btn-del" onclick="delClass('${c._src}',${c._idx})">×</button>
       </span>
     </div>`;
   }).join('');
-
   return `<div class="cat-card">
     <div class="cat-head" onclick="toggleCat(this)">
       <span class="cat-name">${esc(cat)} ${note}</span>
-      <span class="cat-meta">${items.length} class${items.length !== 1 ? 'es' : ''}</span>
+      <span class="cat-meta">${items.length} class${items.length!==1?'es':''}</span>
       <span class="cat-toggle">▾</span>
     </div>
     <div class="cat-body">${rows}</div>
@@ -544,10 +441,9 @@ function renderCat(cat, items, lastDone) {
 function renderTags(tags) {
   if (!tags) return '';
   return String(tags).split(',').map(t => {
-    t = t.trim();
-    if (!t) return '';
-    const slug = t.toLowerCase().replace(/[^a-z]/g, '');
-    const cls  = { k:'tag-k', standing:'tag-standing', noweights:'tag-noweights', r:'tag-r' }[slug] || '';
+    t = t.trim(); if (!t) return '';
+    const slug = t.toLowerCase().replace(/[^a-z]/g,'');
+    const cls = {k:'tag-k',standing:'tag-standing',noweights:'tag-noweights',r:'tag-r'}[slug]||'';
     return `<span class="tag ${cls}">${esc(t)}</span>`;
   }).join('');
 }
@@ -594,220 +490,200 @@ function toggleSrcFields() {
   document.getElementById('field-url').style.display  = isLink ? '' : 'none';
 }
 
-async function submitClass() {
+function submitClass() {
   const name = document.getElementById('m-name').value.trim();
   if (!name) { showErr('Name is required'); return; }
-
-  const src    = document.getElementById('m-src').value;
-  const isLink = src === 'link';
+  const src = document.getElementById('m-src').value, isLink = src === 'link';
   const record = {
-    name,
-    category: document.getElementById('m-cat').value.trim(),
+    name, category: document.getElementById('m-cat').value.trim(),
     duration: document.getElementById('m-dur').value.trim(),
-    tags:     isLink ? '' : document.getElementById('m-tags').value.trim(),
-    url:      isLink ? document.getElementById('m-url').value.trim() : '',
-    notes:    document.getElementById('m-notes').value.trim(),
+    tags: isLink ? '' : document.getElementById('m-tags').value.trim(),
+    url:  isLink ? document.getElementById('m-url').value.trim() : '',
+    notes: document.getElementById('m-notes').value.trim(),
   };
-
   closeOverlay('ov-class');
-  try {
-    if (isLink) {
-      if (editTarget) {
-        urls[editTarget.idx] = { ...record, _idx: editTarget.idx, _src: 'link' };
-      } else {
-        urls.push({ ...record, _idx: urls.length, _src: 'link' });
-      }
-      await saveURLs();
-    } else {
-      if (editTarget) {
-        files[editTarget.idx] = { ...record, _idx: editTarget.idx, _src: 'drive' };
-      } else {
-        files.push({ ...record, _idx: files.length, _src: 'drive' });
-      }
-      await saveFiles();
-    }
-    showOk('Saved');
-    render();
-  } catch(e) { showErr('Save failed: ' + e.message); }
+  if (isLink) {
+    if (editTarget) urls[editTarget.idx] = { ...record, _idx: editTarget.idx, _src: 'link' };
+    else urls.push({ ...record, _idx: urls.length, _src: 'link' });
+  } else {
+    if (editTarget) files[editTarget.idx] = { ...record, _idx: editTarget.idx, _src: 'drive' };
+    else files.push({ ...record, _idx: files.length, _src: 'drive' });
+  }
+  persist();
+  render();
+  showOk('Saved');
 }
 
-async function delClass(src, idx) {
+function delClass(src, idx) {
   if (!confirm('Delete this class?')) return;
-  try {
-    if (src === 'link') {
-      urls.splice(idx, 1);
-      urls.forEach((u, i) => u._idx = i);
-      await saveURLs();
-    } else {
-      files.splice(idx, 1);
-      files.forEach((f, i) => f._idx = i);
-      await saveFiles();
-    }
-    showOk('Deleted');
-    render();
-  } catch(e) { showErr('Delete failed: ' + e.message); }
+  if (src === 'link') { urls.splice(idx, 1); urls.forEach((u,i) => u._idx = i); }
+  else { files.splice(idx, 1); files.forEach((f,i) => f._idx = i); }
+  persist();
+  render();
+  showOk('Deleted');
 }
 
 // ── Import ─────────────────────────────────────────────────────────────────
 function openImport() {
-  document.getElementById('m-import-text').value  = '';
+  document.getElementById('m-import-text').value = '';
+  document.getElementById('m-import-file').value = '';
   document.getElementById('m-import-sheet').value = 'files';
   openOverlay('ov-import');
 }
 
-async function submitImport() {
+function submitImport() {
   const sheet = document.getElementById('m-import-sheet').value;
-  const text  = document.getElementById('m-import-text').value.trim();
+  const file  = document.getElementById('m-import-file').files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = e => doImport(sheet, e.target.result, true);
+    reader.readAsText(file);
+  } else {
+    doImport(sheet, document.getElementById('m-import-text').value, false);
+  }
+}
+
+function doImport(sheet, text, isCSV) {
+  text = text.trim();
   if (!text) return;
+  let count = 0;
 
-  const lines = text.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('--'));
-
-  try {
-    let count = 0;
+  if (isCSV) {
+    // CSV file import — match columns by header
+    const rows = parseCSV(text);
     if (sheet === 'files') {
       const base = files.length;
-      lines.forEach((line, i) => {
-        const p = parseName(line);
-        files.push({ name: line, category: p.cat, duration: p.dur, tags: p.tags, url: '', notes: '', _idx: base + i, _src: 'drive' });
-      });
-      await saveFiles();
-      count = lines.length;
+      rows.forEach((r, i) => files.push({ name:r.name||'', category:r.category||'', duration:r.duration||'', tags:r.tags||'', url:'', notes:r.notes||'', _idx:base+i, _src:'drive' }));
+    } else if (sheet === 'urls') {
+      const base = urls.length;
+      rows.forEach((r, i) => urls.push({ name:r.name||'', category:r.category||'', duration:r.duration||'', url:r.url||'', tags:'', notes:r.notes||'', _idx:base+i, _src:'link' }));
+    } else if (sheet === 'log') {
+      const base = logData.length;
+      rows.forEach((r, i) => logData.push({ date:r.date||'', 'class':r['class']||'', notes:r.notes||'', _idx:base+i }));
+    }
+    count = rows.length;
+  } else {
+    // Plain text import
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('--'));
+    if (sheet === 'files') {
+      const base = files.length;
+      lines.forEach((line, i) => { const p = parseName(line); files.push({ name:line, category:p.cat, duration:p.dur, tags:p.tags, url:'', notes:'', _idx:base+i, _src:'drive' }); });
     } else if (sheet === 'urls') {
       const base = urls.length;
       lines.forEach((line, i) => {
-        const urlMatch = line.match(/https?:\/\/\S+/);
-        const url  = urlMatch ? urlMatch[0] : '';
-        const name = url ? line.replace(url, '').replace(/[:\s]+$/, '').trim() : line;
-        const p    = parseName(name);
-        urls.push({ name, category: p.cat, duration: p.dur, url, tags: '', notes: '', _idx: base + i, _src: 'link' });
+        const um = line.match(/https?:\/\/\S+/);
+        const url = um ? um[0] : '', name = url ? line.replace(url,'').replace(/[:\s]+$/,'').trim() : line;
+        const p = parseName(name);
+        urls.push({ name, category:p.cat, duration:p.dur, url, tags:'', notes:'', _idx:base+i, _src:'link' });
       });
-      await saveURLs();
-      count = lines.length;
     } else if (sheet === 'log') {
-      const base = logData.length;
-      let added  = 0;
+      const base = logData.length; let added = 0;
       lines.forEach((line, i) => {
         const m = line.match(/^(\d{4}-\d{2}-\d{2})\s*[|]?\s*(.+)$/);
         if (!m) return;
-        logData.push({ date: m[1], 'class': m[2].trim(), notes: '', _idx: base + i });
-        added++;
+        logData.push({ date:m[1], 'class':m[2].trim(), notes:'', _idx:base+i }); added++;
       });
-      await saveLog();
       count = added;
     }
-    closeOverlay('ov-import');
-    showOk(`Imported ${count} rows into ${sheet}.csv`);
-    render();
-  } catch(e) { showErr('Import failed: ' + e.message); }
+    if (sheet !== 'log') count = lines.length;
+  }
+
+  persist();
+  closeOverlay('ov-import');
+  render();
+  showOk(`Imported ${count} rows into ${sheet}`);
 }
 
-// ── Parsing ────────────────────────────────────────────────────────────────
+// ── Backup modal ───────────────────────────────────────────────────────────
+function openBackup() {
+  // Update counts in button labels
+  const btns = document.querySelectorAll('#ov-backup .btn-ghost');
+  const counts = [files.length, urls.length, logData.length];
+  const labels = ['files','urls','log'];
+  btns.forEach((b, i) => {
+    b.innerHTML = `⬇ Download ${labels[i]}.csv &nbsp;<span style="color:#999;font-size:12px">(${counts[i]} entries)</span>`;
+  });
+  openOverlay('ov-backup');
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
 function parseName(name) {
-  const nm  = name.match(/\b(\d{3,4})\b/);
-  const fw  = name.split(' ')[0];
-  const map = { 'jk':'JK','activate':'activate','ba':'ba','csc':'csc',
-                'dumbbell':'dumbbell','f&f':'f&f','hiit':'hiit',
-                'circuit':'circuit','cicuit':'circuit','grit':'grit',
-                'pump':'pump','strength':'strength','tpr':'tpr' };
+  const nm = name.match(/\b(\d{3,4})\b/), fw = name.split(' ')[0];
+  const map = {'jk':'JK','activate':'activate','ba':'ba','csc':'csc','dumbbell':'dumbbell',
+               'f&f':'f&f','hiit':'hiit','circuit':'circuit','cicuit':'circuit',
+               'grit':'grit','pump':'pump','strength':'strength','tpr':'tpr'};
   const cat = map[fw.toLowerCase()] || fw.toLowerCase();
   if (!nm) return { cat, dur: '', tags: '' };
-  const dur  = nm[1];
-  const idx  = name.indexOf(dur);
-  const pre  = name.substring(0, idx).replace(new RegExp('^' + escRe(fw) + '\\s*', 'i'), '').trim();
+  const dur = nm[1], idx = name.indexOf(dur);
+  const pre  = name.substring(0, idx).replace(new RegExp('^' + escRe(fw) + '\\s*','i'), '').trim();
   const post = name.substring(idx + dur.length).trim();
   return { cat, dur, tags: [pre, post].filter(Boolean).join(', ') };
 }
 
-function escRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
-
-// ── Formatting ─────────────────────────────────────────────────────────────
+function escRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
 function fmtDur(code) {
   if (!code) return '';
   const s = String(code);
-  if (s.length < 3) return s + 'm';
-  return `${parseInt(s.slice(0,-2), 10)}:${s.slice(-2)}`;
+  return s.length < 3 ? s+'m' : `${parseInt(s.slice(0,-2),10)}:${s.slice(-2)}`;
 }
+function fmtDate(iso) { return new Date(iso).toLocaleDateString('en-AU',{day:'numeric',month:'short'}); }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-function fmtDate(iso) {
-  return new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
-}
-
-function esc(s) {
-  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
-// ── UI helpers ─────────────────────────────────────────────────────────────
-function showApp(folderName) {
-  document.getElementById('screen-folder').style.display = 'none';
-  document.getElementById('screen-app').style.display    = '';
-  if (folderName && folderName !== 'dev') {
-    document.getElementById('folder-name').textContent = folderName + '/';
-  }
-}
-
+// ── UI ─────────────────────────────────────────────────────────────────────
 function showTab(name) {
   ['classes','schedule','log'].forEach(t => {
-    document.getElementById('tab-' + t).style.display = t === name ? '' : 'none';
+    document.getElementById('tab-'+t).style.display = t===name?'':'none';
   });
-  document.querySelectorAll('.nav-btn').forEach((b, i) => {
-    b.classList.toggle('active', ['classes','schedule','log'][i] === name);
+  document.querySelectorAll('.nav-btn').forEach((b,i) => {
+    b.classList.toggle('active', ['classes','schedule','log'][i]===name);
   });
 }
-
 function toggleCat(head) {
-  const body = head.nextElementSibling;
-  const open = body.style.display !== 'none';
+  const body = head.nextElementSibling, open = body.style.display !== 'none';
   body.style.display = open ? 'none' : '';
   head.querySelector('.cat-toggle').textContent = open ? '▸' : '▾';
 }
-
 function openOverlay(id)  { document.getElementById(id).classList.add('open'); }
 function closeOverlay(id) { document.getElementById(id).classList.remove('open'); }
-
 document.addEventListener('click', e => {
-  ['ov-class','ov-import'].forEach(id => {
+  ['ov-class','ov-import','ov-backup'].forEach(id => {
     if (e.target === document.getElementById(id)) closeOverlay(id);
   });
 });
-
 function showOk(msg)  { setStatus('ok',  msg); }
 function showErr(msg) { setStatus('err', msg); }
 function setStatus(cls, msg) {
   const el = document.getElementById('status');
-  el.textContent = msg;
-  el.className   = 'status ' + cls;
-  clearTimeout(el._t);
-  el._t = setTimeout(() => { el.className = 'status'; }, 3500);
+  el.textContent = msg; el.className = 'status '+cls;
+  clearTimeout(el._t); el._t = setTimeout(() => { el.className='status'; }, 3500);
 }
 
-// ── Dev mock data ──────────────────────────────────────────────────────────
+// ── Dev data ───────────────────────────────────────────────────────────────
 const DEV_FILES = [
-  { name:'activate 4225',            category:'activate', duration:'4225', tags:'',                url:'', notes:'' },
-  { name:'activate 4355 k',          category:'activate', duration:'4355', tags:'k',               url:'', notes:'' },
-  { name:'activate 4435 k standing', category:'activate', duration:'4435', tags:'k, standing',     url:'', notes:'' },
-  { name:'ba sporting form 2707 standing', category:'ba', duration:'2707', tags:'sporting form, standing', url:'', notes:'' },
-  { name:'ba 5109 lorence',          category:'ba',       duration:'5109', tags:'',                url:'', notes:'' },
-  { name:'csc 3824',                 category:'csc',      duration:'3824', tags:'',                url:'', notes:'' },
-  { name:'csc r 4121',               category:'csc',      duration:'4121', tags:'r',               url:'', notes:'' },
-  { name:'dumbbell 3829',            category:'dumbbell', duration:'3829', tags:'',                url:'', notes:'' },
-  { name:'dumbbell 4806',            category:'dumbbell', duration:'4806', tags:'',                url:'', notes:'' },
-  { name:'f&f 3240',                 category:'f&f',      duration:'3240', tags:'',                url:'', notes:'' },
-  { name:'JK 90s hiphop 2052',       category:'JK',       duration:'2052', tags:'90s hiphop',      url:'', notes:'' },
-  { name:'JK walkdance 1050',        category:'JK',       duration:'1050', tags:'walkdance',       url:'', notes:'' },
+  {name:'activate 4225',            category:'activate',duration:'4225',tags:'',               url:'',notes:''},
+  {name:'activate 4355 k',          category:'activate',duration:'4355',tags:'k',              url:'',notes:''},
+  {name:'activate 4435 k standing', category:'activate',duration:'4435',tags:'k, standing',    url:'',notes:''},
+  {name:'ba sporting form 2707 standing',category:'ba', duration:'2707',tags:'sporting form, standing',url:'',notes:''},
+  {name:'ba 5109 lorence',          category:'ba',      duration:'5109',tags:'',               url:'',notes:''},
+  {name:'csc 3824',                 category:'csc',     duration:'3824',tags:'',               url:'',notes:''},
+  {name:'csc r 4121',               category:'csc',     duration:'4121',tags:'r',              url:'',notes:''},
+  {name:'dumbbell 3829',            category:'dumbbell',duration:'3829',tags:'',               url:'',notes:''},
+  {name:'dumbbell 4806',            category:'dumbbell',duration:'4806',tags:'',               url:'',notes:''},
+  {name:'f&f 3240',                 category:'f&f',     duration:'3240',tags:'',               url:'',notes:''},
+  {name:'JK 90s hiphop 2052',       category:'JK',      duration:'2052',tags:'90s hiphop',     url:'',notes:''},
+  {name:'JK walkdance 1050',        category:'JK',      duration:'1050',tags:'walkdance',      url:'',notes:''},
 ];
-
 const DEV_URLS = [
-  { name:'JK 40 full body hiit', category:'JK', duration:'4000', url:'https://www.youtube.com/watch?v=4q16hzAnSJU', tags:'', notes:'' },
-  { name:'JK 35 HIIT dance',     category:'JK', duration:'3500', url:'https://www.youtube.com/watch?v=mo0h8k2FDlw', tags:'', notes:'' },
+  {name:'JK 40 full body hiit',category:'JK',duration:'4000',url:'https://www.youtube.com/watch?v=4q16hzAnSJU',tags:'',notes:''},
+  {name:'JK 35 HIIT dance',    category:'JK',duration:'3500',url:'https://www.youtube.com/watch?v=mo0h8k2FDlw', tags:'',notes:''},
 ];
-
 const DEV_LOG = [
-  { date:'2026-05-11', 'class':'activate 4225',                  notes:'' },
-  { date:'2026-05-09', 'class':'csc 3824',                       notes:'' },
-  { date:'2026-05-08', 'class':'dumbbell 3829',                  notes:'' },
-  { date:'2026-05-07', 'class':'f&f 3240',                       notes:'' },
-  { date:'2026-04-28', 'class':'ba sporting form 2707 standing', notes:'' },
-  { date:'2026-05-10', 'class':'JK 90s hiphop 2052',             notes:'' },
+  {date:'2026-05-11','class':'activate 4225',notes:''},
+  {date:'2026-05-09','class':'csc 3824',notes:''},
+  {date:'2026-05-08','class':'dumbbell 3829',notes:''},
+  {date:'2026-05-07','class':'f&f 3240',notes:''},
+  {date:'2026-04-28','class':'ba sporting form 2707 standing',notes:''},
+  {date:'2026-05-10','class':'JK 90s hiphop 2052',notes:''},
 ];
 </script>
 </body>
