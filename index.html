@@ -136,6 +136,12 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .ti-pick-item { display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;border-bottom:1px solid #f5f5f5;user-select:none; }
 .ti-pick-item:last-child { border-bottom:none; }
 .ti-pick-item:hover,.ti-pick-item.ti-pick-active { background:#eef7ee; }
+.cat-chip { padding:4px 11px;border-radius:12px;border:1px solid #b2d8b2;background:#e8ede8;color:#2e6b30;font-size:12px;cursor:pointer;font-family:inherit;white-space:nowrap; }
+.cat-chip:hover { background:#d0e8d0; }
+.cat-chip.active { background:#2e6b30;color:#fff;border-color:#2e6b30; }
+.day-cat-item { display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer;border-bottom:1px solid #f2f4f2;user-select:none; }
+.day-cat-item:last-child { border-bottom:none; }
+.day-cat-item:hover { background:#eef7ee; }
 .ti-pick-name  { flex:1;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
 .ti-pick-count { font-size:11px;color:#4a7c4e;background:#eaf3ea;border-radius:8px;padding:1px 5px;flex-shrink:0;font-weight:600; }
 .ti-pick-desc  { font-size:11px;color:#bbb;flex-shrink:0;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
@@ -404,27 +410,15 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
       <h3 id="day-edit-title" style="margin:0;flex:1">Edit day</h3>
       <button onclick="closeOverlay('ov-day-edit')" style="background:none;border:none;font-size:20px;color:#aaa;cursor:pointer;line-height:1;padding:0 2px" title="Close">&times;</button>
     </div>
-    <div id="day-edit-items" style="margin-bottom:14px;min-height:32px"></div>
+    <div id="day-edit-items" style="margin-bottom:12px;min-height:32px"></div>
     <hr class="divider">
-    <div class="field" style="margin-bottom:10px">
-      <label>Add class</label>
-      <div style="display:flex;gap:8px">
-        <input id="day-edit-input" class="search" list="day-edit-list"
-               placeholder="Type class name…" style="flex:1;font-size:13px"
-               onkeydown="if(event.key==='Enter')dayEditAddManual()">
-        <datalist id="day-edit-list"></datalist>
-        <button class="btn btn-primary" style="font-size:13px;padding:8px 12px" onclick="dayEditAddManual()">Add</button>
-      </div>
+    <div style="margin-bottom:8px">
+      <div id="day-cat-chips" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:9px"></div>
+      <input id="day-cat-search" class="search" placeholder="Search classes…"
+             style="width:100%;font-size:13px;box-sizing:border-box;margin-bottom:6px"
+             oninput="renderDayCatList()">
+      <div id="day-cat-list" style="max-height:240px;overflow-y:auto;border:1px solid #e8ede8;border-radius:6px"></div>
     </div>
-    <div style="position:relative;margin:4px 0 12px">
-      <div style="border-top:1px solid #eee"></div>
-      <span style="position:absolute;top:-8px;left:50%;transform:translateX(-50%);background:#fff;padding:0 10px;font-size:11px;color:#aaa">or suggest</span>
-    </div>
-    <div style="display:flex;gap:8px;margin-bottom:10px">
-      <select id="day-sug-cat" onchange="daySuggestRefresh()" style="flex:1;padding:7px 8px;border:1px solid #cdd;border-radius:5px;font-size:13px;font-family:inherit;outline:none"></select>
-      <button class="btn btn-ghost" style="font-size:12px;padding:6px 10px" onclick="daySuggestAnother()">🎲 Another</button>
-    </div>
-    <div id="day-sug-out" style="min-height:80px"></div>
     <div class="modal-actions">
       <button class="btn btn-primary" onclick="closeOverlay('ov-day-edit')">Done</button>
     </div>
@@ -437,7 +431,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.37'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.38'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -462,6 +456,7 @@ let dayEditState  = null;   // { day, isPast, dateStr }
 let daySuggestIdx  = 0;
 let daySuggestPool = [];
 let schedWeekOffset = 0;
+let dayCatSelected = '';
 
 // ── Sync state ─────────────────────────────────────────────────────────────
 let syncUrl = '';   // Firebase Realtime DB base URL
@@ -2130,19 +2125,83 @@ function openDayEdit(day, isPast, dateStr) {
   const dt = new Date(dateStr + 'T00:00:00');
   document.getElementById('day-edit-title').textContent =
     dt.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'short' });
+  dayCatSelected = '';
+  document.getElementById('day-cat-search').value = '';
+  renderDayEditItems();
+  renderDayCatChips();
+  renderDayCatList();
+  openOverlay('ov-day-edit');
+  setTimeout(() => document.getElementById('day-cat-search').focus(), 50);
+}
+
+function renderDayCatChips() {
   const nameMap = buildClassMap();
-  document.getElementById('day-edit-list').innerHTML =
-    [...nameMap.keys()].sort().map(n => `<option value="${esc(n)}">`).join('');
   const cats = [...new Set([...nameMap.values()].map(c => c.category).filter(Boolean))]
     .sort((a, b) => { const ai=CAT_ORDER.indexOf(a),bi=CAT_ORDER.indexOf(b); return (ai<0?99:ai)-(bi<0?99:bi)||a.localeCompare(b); });
-  document.getElementById('day-sug-cat').innerHTML =
-    `<option value="">Any category</option>` +
-    cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
-  daySuggestIdx = 0;
-  renderDayEditItems();
-  daySuggestRefresh();
-  openOverlay('ov-day-edit');
-  setTimeout(() => document.getElementById('day-edit-input').focus(), 50);
+  document.getElementById('day-cat-chips').innerHTML =
+    ['', ...cats].map(cat => {
+      const label  = cat || 'All';
+      const active = cat === dayCatSelected ? ' active' : '';
+      return `<button class="cat-chip${active}" onclick="dayCatSelect('${esc(cat)}')">${esc(label)}</button>`;
+    }).join('');
+}
+
+function dayCatSelect(cat) {
+  dayCatSelected = cat;
+  document.getElementById('day-cat-search').value = '';
+  renderDayCatChips();
+  renderDayCatList();
+  document.getElementById('day-cat-search').focus();
+}
+
+function renderDayCatList() {
+  const nameMap = buildClassMap();
+  const q = (document.getElementById('day-cat-search')?.value || '').toLowerCase().trim();
+  const lastDone = {}, counts = {};
+  for (const e of logData) {
+    const n = (e['class']||'').trim(); if (!n) continue;
+    counts[n] = (counts[n]||0) + 1;
+    if (e.date && (!lastDone[n] || e.date > lastDone[n])) lastDone[n] = e.date;
+  }
+  let pool = [...nameMap.values()];
+  if (dayCatSelected) pool = pool.filter(c => c.category === dayCatSelected);
+  if (q) pool = pool.filter(c => c.name.toLowerCase().includes(q));
+  // Sort: never done first, then least recently done
+  pool.sort((a, b) => {
+    const la = lastDone[a.name] || '', lb = lastDone[b.name] || '';
+    if (!la && !lb) return a.name.localeCompare(b.name);
+    if (!la) return -1; if (!lb) return 1;
+    return la.localeCompare(lb);
+  });
+  const el = document.getElementById('day-cat-list');
+  if (!pool.length) {
+    el.innerHTML = '<p style="color:#bbb;font-size:13px;padding:10px 12px;margin:0">No classes found.</p>';
+    return;
+  }
+  const todayMs = Date.now();
+  el.innerHTML = pool.map(c => {
+    const cnt = counts[c.name] || 0;
+    const ld  = lastDone[c.name];
+    let lastStr = '';
+    if (ld) {
+      const days = Math.floor((todayMs - new Date(ld + 'T00:00:00').getTime()) / 86400000);
+      lastStr = days === 0 ? 'today' : days === 1 ? '1d ago' : `${days}d ago`;
+    } else {
+      lastStr = '✨ new';
+    }
+    const meta = [fmtDur(c.duration), cnt ? cnt+'×' : '', lastStr].filter(Boolean).join(' · ');
+    const linkBtn = c.url
+      ? `<a href="${esc(c.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()"
+            class="btn-sm btn-ghost" style="text-decoration:none;padding:3px 7px;font-size:11px">▶</a>`
+      : '';
+    return `<div class="day-cat-item" onclick="dayEditAddClass('${esc(c.name).replace(/'/g,"\\'")}')">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.name)}</div>
+        <div style="font-size:11px;color:#999;margin-top:1px">${esc(meta)}</div>
+      </div>
+      ${linkBtn}
+    </div>`;
+  }).join('');
 }
 
 function renderDayEditItems() {
@@ -2265,79 +2324,11 @@ function dayEditAddClass(name) {
   renderSchedule();
 }
 
-function daySuggestRefresh() {
-  const cat     = document.getElementById('day-sug-cat').value;
-  const nameMap = buildClassMap();
-  const lastDone = {}, counts = {};
-  for (const e of logData) {
-    const n = (e['class']||'').trim(); if (!n) continue;
-    counts[n] = (counts[n]||0)+1;
-    if (e.date && (!lastDone[n] || e.date > lastDone[n])) lastDone[n] = e.date;
-  }
-  let pool = [...nameMap.values()];
-  if (cat) pool = pool.filter(c => c.category === cat);
-  pool.sort((a, b) => {
-    const da = lastDone[a.name], db = lastDone[b.name];
-    if (!da && !db) return 0;
-    if (!da) return -1;
-    if (!db) return 1;
-    return da.localeCompare(db);
-  });
-  daySuggestPool = pool;
-  daySuggestIdx  = 0;
-  daySuggestRenderCard();
-}
-
-function daySuggestRenderCard() {
-  const out = document.getElementById('day-sug-out');
-  if (!daySuggestPool.length) {
-    out.innerHTML = '<p style="color:#bbb;font-size:12px;padding:4px 0">No classes found.</p>';
-    return;
-  }
-  const c = daySuggestPool[daySuggestIdx % daySuggestPool.length];
-  const lastDone = {}, counts = {};
-  for (const e of logData) {
-    const n = (e['class']||'').trim(); if (!n) continue;
-    counts[n] = (counts[n]||0)+1;
-    if (e.date && (!lastDone[n] || e.date > lastDone[n])) lastDone[n] = e.date;
-  }
-  const ld  = lastDone[c.name];
-  const cnt = counts[c.name] || 0;
-  const pos = (daySuggestIdx % daySuggestPool.length) + 1;
-  const linkHtml = c.url
-    ? `<a href="${esc(c.url)}" target="_blank" rel="noopener" class="btn btn-ghost" style="font-size:11px;padding:4px 9px;text-decoration:none">▶</a>`
-    : `<a href="https://drive.google.com/drive/search?q=${encodeURIComponent(c.name)}&driveId=${DRIVE_FOLDER_ID}" target="_blank" rel="noopener" class="btn btn-ghost" style="font-size:11px;padding:4px 9px;text-decoration:none">📁</a>`;
-  const lastStr = ld
-    ? `last ${fmtDate(ld)} · ${Math.floor((Date.now()-new Date(ld))/86400000)}d ago`
-    : '✨ never done';
-  out.innerHTML = `
-    <div style="background:#f4f9f4;border-radius:8px;padding:12px">
-      <div style="display:flex;align-items:flex-start;gap:8px">
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:600;color:#222;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.name)}</div>
-          ${c.description ? `<div style="font-size:11px;color:#777;margin-top:1px">${esc(c.description)}</div>` : ''}
-          <div style="font-size:11px;color:#aaa;margin-top:3px">${[fmtDur(c.duration),lastStr,cnt?cnt+'×':''].filter(Boolean).join(' · ')}</div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;align-items:flex-end">
-          <button class="btn btn-primary" style="font-size:12px;padding:5px 10px" onclick="daySuggestAddToDay()">+ Add</button>
-          ${linkHtml}
-        </div>
-      </div>
-      <div style="font-size:10px;color:#ccc;text-align:right;margin-top:6px">${pos} / ${daySuggestPool.length}</div>
-    </div>`;
-}
-
-function daySuggestAnother() {
-  daySuggestIdx++;
-  daySuggestRenderCard();
-}
-
-function daySuggestAddToDay() {
-  if (!daySuggestPool.length) return;
-  const c = daySuggestPool[daySuggestIdx % daySuggestPool.length];
-  dayEditAddClass(c.name);
-  daySuggestAnother();
-}
+// Legacy stubs — replaced by renderDayCatChips / dayCatSelect / renderDayCatList
+function daySuggestRefresh() {}
+function daySuggestRenderCard() {}
+function daySuggestAnother() {}
+function daySuggestAddToDay() {}
 
 // ── Log tab ────────────────────────────────────────────────────────────────
 function renderLog() {
