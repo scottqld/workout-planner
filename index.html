@@ -333,7 +333,10 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <!-- ── Day edit modal ── -->
 <div class="overlay" id="ov-day-edit">
   <div class="modal">
-    <h3 id="day-edit-title">Edit day</h3>
+    <div style="display:flex;align-items:center;margin-bottom:18px">
+      <h3 id="day-edit-title" style="margin:0;flex:1">Edit day</h3>
+      <button onclick="closeOverlay('ov-day-edit')" style="background:none;border:none;font-size:20px;color:#aaa;cursor:pointer;line-height:1;padding:0 2px" title="Close">&times;</button>
+    </div>
     <div id="day-edit-items" style="margin-bottom:14px;min-height:32px"></div>
     <hr class="divider">
     <div class="field" style="margin-bottom:10px">
@@ -367,7 +370,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.20'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.21'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -1400,7 +1403,7 @@ function dayItemStartEdit(rowId, type, dataIdx) {
            onkeydown="if(event.key==='Enter')dayItemSaveEdit('${type}',${dataIdx});if(event.key==='Escape')renderDayEditItems()">
     ${notesInput}
     <button class="btn btn-primary" style="font-size:11px;padding:4px 9px" onclick="dayItemSaveEdit('${type}',${dataIdx})">Save</button>
-    <button class="btn btn-ghost"   style="font-size:11px;padding:4px 9px" onclick="renderDayEditItems()">✕</button>
+    <button class="btn btn-ghost"   style="font-size:11px;padding:4px 9px" onclick="renderDayEditItems()">Cancel</button>
   `;
   document.getElementById('day-inline-name').focus();
   document.getElementById('day-inline-name').select();
