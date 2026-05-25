@@ -400,7 +400,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.29'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.30'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -443,9 +443,9 @@ function startApp() {
   loadFromStorage();
   removeRetroScheduleEntries();
   commitScheduleToLog();
+  checkPastWeekAutoLog();   // update logData BEFORE first render
   render();
   showTab('schedule');
-  checkPastWeekAutoLog();   // after render so the status bar is visible
 }
 
 // ── PIN ────────────────────────────────────────────────────────────────────
@@ -729,13 +729,16 @@ function checkPastWeekAutoLog() {
   const existing = new Set(logData.map(e => `${e.date}|${(e['class']||'').toLowerCase().trim()}`));
   const newEntries = [];
   const newWeeks   = [];
-  // Check up to 8 completed past weeks (current week handled by commitScheduleToLog)
-  for (let wkOffset = -1; wkOffset >= -8; wkOffset--) {
+  // Check up to 26 completed past weeks (current week handled by commitScheduleToLog)
+  for (let wkOffset = -1; wkOffset >= -26; wkOffset--) {
     const { monday, map: dm } = weekDates(wkOffset);
     if (dm['sun'] >= today) continue;                    // week not yet complete
     const { week, year } = isoWeekNumber(monday);
     const weekStr = `${year}-W${String(week).padStart(2,'0')}`;
     if (logged.has(weekStr)) continue;                   // already processed
+    // Only mark the week done if the schedule actually has entries —
+    // avoids permanently skipping weeks that predate the schedule being set up
+    const weekHasSchedule = DAYS.some(d => (schedule[d] || []).length > 0);
     for (const day of DAYS) {
       const dateStr = isoD(dm[day]);
       for (const name of (schedule[day] || [])) {
@@ -746,7 +749,7 @@ function checkPastWeekAutoLog() {
         }
       }
     }
-    newWeeks.push(weekStr);
+    if (weekHasSchedule) newWeeks.push(weekStr);
   }
   if (!newWeeks.length) return;
   if (newEntries.length) {
@@ -759,7 +762,8 @@ function checkPastWeekAutoLog() {
   localStorage.setItem('wp-autolog', JSON.stringify([...logged, ...newWeeks]));
   if (newEntries.length) {
     const wLabel = newWeeks.length === 1 ? 'last week' : `${newWeeks.length} past weeks`;
-    showOk(`Auto-logged ${newEntries.length} session${newEntries.length!==1?'s':''} from ${wLabel} — edit in Log if needed`);
+    const msg = `Auto-logged ${newEntries.length} session${newEntries.length!==1?'s':''} from ${wLabel} — edit in Log if needed`;
+    setTimeout(() => showOk(msg), 300);  // defer until after render
   }
 }
 
