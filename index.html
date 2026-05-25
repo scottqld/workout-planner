@@ -160,9 +160,10 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .sched-row-name.past { color:#aaa; }
 .sched-row-date   { font-size:10px;color:#bbb;display:block; }
 .sched-row-chips  { flex:1;display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-width:0; }
-.sched-chip       { display:inline-flex;align-items:center;gap:4px;padding:3px 5px 3px 8px;border-radius:14px;border:1px solid #d4e8d4;background:#f4f9f4;font-size:12px;cursor:pointer;max-width:100%; }
-.sched-chip:hover { background:#dff0df;border-color:#9ccb9c; }
-.sched-chip.done  { border-color:#2e6b30;background:#eaf5ea; }
+.sched-chip           { display:inline-flex;align-items:center;gap:4px;padding:3px 5px 3px 8px;border-radius:14px;border:1px solid #d4e8d4;background:#f4f9f4;font-size:12px;cursor:pointer;max-width:100%; }
+.sched-chip:hover     { background:#dff0df;border-color:#9ccb9c; }
+.sched-chip.done      { border-color:#2e6b30;background:#eaf5ea; }
+.sched-chip-past      { opacity:.45; }
 .sched-chip-name  { overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px; }
 .sched-chip-dur   { font-size:11px;color:#888;flex-shrink:0; }
 .sched-chip-del   { background:none;border:none;color:#c00;font-size:13px;padding:0 1px;line-height:1;cursor:pointer;flex-shrink:0;opacity:.6; }
@@ -453,7 +454,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.45'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.46'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -1747,19 +1748,23 @@ function renderSchedule() {
   const DOW_KEY   = ['sun','mon','tue','wed','thu','fri','sat'];
   const DAY_SHORT = { mon:'Mon',tue:'Tue',wed:'Wed',thu:'Thu',fri:'Fri',sat:'Sat',sun:'Sun' };
 
-  // Build day list: today through end of next week (next Sunday)
+  // Build two full weeks: Mon this week → Sun next week (always 14 days)
   const todayDt = new Date(); todayDt.setHours(0,0,0,0);
   const dow = todayDt.getDay(); // 0=Sun
-  const daysToNextSun = (7 - dow) % 7 + 7;
-  const dayList = [];
-  for (let i = 0; i <= daysToNextSun; i++) {
-    const dt = new Date(todayDt); dt.setDate(todayDt.getDate() + i);
-    dayList.push({ dt, dayKey: DOW_KEY[dt.getDay()] });
-  }
+  const monday = new Date(todayDt);
+  monday.setDate(todayDt.getDate() - (dow === 0 ? 6 : dow - 1)); // Mon of current week
+  const weeks = [0, 1].map(wk => {
+    return DAYS.map((dayKey, i) => {
+      const dt = new Date(monday);
+      dt.setDate(monday.getDate() + wk * 7 + i);
+      return { dt, dayKey };
+    });
+  });
+  const allDays = weeks.flat();
 
-  // Summary totals
+  // Summary totals (both weeks)
   let schedCnt = 0, totalMins = 0;
-  for (const { dt, dayKey } of dayList) {
+  for (const { dt, dayKey } of allDays) {
     const ds = isoDate(dt);
     const items = dateOverrides.hasOwnProperty(ds) ? dateOverrides[ds] : (schedule[dayKey] || []);
     schedCnt += items.length;
@@ -1769,7 +1774,7 @@ function renderSchedule() {
     }
   }
   const summaryParts = [];
-  if (schedCnt)    summaryParts.push(`${schedCnt} scheduled`);
+  if (schedCnt)      summaryParts.push(`${schedCnt} scheduled`);
   if (totalMins > 0) summaryParts.push(fmtMins(totalMins));
   const summaryLine = summaryParts.length
     ? `<div style="text-align:center;font-size:12px;color:#888;margin-bottom:10px">${summaryParts.join(' · ')}</div>`
@@ -1781,35 +1786,51 @@ function renderSchedule() {
     </button>
   </div>`;
 
-  // Rows
-  const rows = dayList.map(({ dt, dayKey }) => {
-    const today   = isToday(dt);
-    const dateStr = isoDate(dt);
-    const items   = dateOverrides.hasOwnProperty(dateStr) ? dateOverrides[dateStr] : (schedule[dayKey] || []);
-    let chips;
-    if (items.length > 0) {
-      chips = items.map((name, idx) => {
-        const c   = classMap.get((name||'').toLowerCase().trim());
-        const dur = c ? `<span class="sched-chip-dur">${fmtDur(c.duration)}</span>` : '';
-        const db  = c ? durBadge(c.duration) : '';
-        return `<span class="sched-chip" onclick="openDayEdit('${dayKey}',false,'${dateStr}')">
-          <span class="sched-chip-name">${esc(name)}</span>${dur}${db}
-          <button class="sched-chip-del" onclick="event.stopPropagation();tiDeleteDateEntry('${dateStr}','${dayKey}',${idx})">×</button>
-        </span>`;
-      }).join('');
-    } else {
-      chips = `<span class="sched-rest">rest</span>`;
-    }
-    const todayDot = today ? ' <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#2e6b30;vertical-align:middle;margin-left:3px"></span>' : '';
-    return `<div class="sched-row${today ? ' row-today' : ''}">
-      <div class="sched-row-day">
-        <span class="sched-row-name">${DAY_SHORT[dayKey]}${todayDot}</span>
-        <span class="sched-row-date">${dayFmt(dt)}</span>
-      </div>
-      <div class="sched-row-chips">${chips}</div>
-      <button class="sched-add-btn" title="Edit day" onclick="openDayEdit('${dayKey}',false,'${dateStr}')">+</button>
-    </div>`;
-  }).join('');
+  // Render a week block (header + 7 rows)
+  const renderWeekBlock = (weekDays, weekLabel) => {
+    const header = `<div style="padding:5px 12px 3px;font-size:11px;font-weight:600;color:#2e6b30;background:#eaf3ea;letter-spacing:.5px;text-transform:uppercase">${weekLabel}</div>`;
+    const rowsHtml = weekDays.map(({ dt, dayKey }) => {
+      const today   = isToday(dt);
+      const isPast  = dt < todayDt;
+      const dateStr = isoDate(dt);
+      const items   = dateOverrides.hasOwnProperty(dateStr) ? dateOverrides[dateStr] : (schedule[dayKey] || []);
+      let chips;
+      if (items.length > 0) {
+        chips = items.map((name, idx) => {
+          const c   = classMap.get((name||'').toLowerCase().trim());
+          const dur = c ? `<span class="sched-chip-dur">${fmtDur(c.duration)}</span>` : '';
+          const db  = c ? durBadge(c.duration) : '';
+          return `<span class="sched-chip${isPast ? ' sched-chip-past' : ''}" onclick="openDayEdit('${dayKey}',false,'${dateStr}')">
+            <span class="sched-chip-name">${esc(name)}</span>${dur}${db}
+            <button class="sched-chip-del" onclick="event.stopPropagation();tiDeleteDateEntry('${dateStr}','${dayKey}',${idx})">×</button>
+          </span>`;
+        }).join('');
+      } else {
+        chips = `<span class="sched-rest">${isPast ? '—' : 'rest'}</span>`;
+      }
+      const todayDot  = today ? ' <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#2e6b30;vertical-align:middle;margin-left:3px"></span>' : '';
+      const nameStyle = isPast && !today ? ' past' : '';
+      return `<div class="sched-row${today ? ' row-today' : ''}">
+        <div class="sched-row-day">
+          <span class="sched-row-name${nameStyle}">${DAY_SHORT[dayKey]}${todayDot}</span>
+          <span class="sched-row-date">${dayFmt(dt)}</span>
+        </div>
+        <div class="sched-row-chips">${chips}</div>
+        <button class="sched-add-btn" title="Edit day" onclick="openDayEdit('${dayKey}',false,'${dateStr}')">+</button>
+      </div>`;
+    }).join('');
+    return header + rowsHtml;
+  };
+
+  const weekLabel = (mondayDt) => {
+    const { week, year } = isoWeekNumber(mondayDt);
+    const end = new Date(mondayDt); end.setDate(mondayDt.getDate() + 6);
+    return `Week ${week} · ${dayFmt(mondayDt)} – ${dayFmt(end)}`;
+  };
+
+  const monday2 = new Date(monday); monday2.setDate(monday.getDate() + 7);
+  const cardsHtml = `<div class="cat-card" style="overflow:hidden;margin-bottom:10px">${renderWeekBlock(weeks[0], weekLabel(monday))}</div>`
+                  + `<div class="cat-card" style="overflow:hidden">${renderWeekBlock(weeks[1], weekLabel(monday2))}</div>`;
 
   const { current: streakNow, best: streakBest } = calcStreak();
   const streakHtml = streakNow > 0
@@ -1823,7 +1844,6 @@ function renderSchedule() {
       </div>`
     : '';
 
-  const cardsHtml = `<div class="cat-card" style="overflow:hidden">${rows}</div>`;
   document.getElementById('schedule-out').innerHTML = streakHtml + summaryLine + autoGenBtn + cardsHtml;
 }
 
