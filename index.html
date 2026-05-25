@@ -61,6 +61,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .class-name  { flex: 1; font-size: 13px; min-width: 0; }
 .class-desc  { flex: 1.2; font-size: 12px; color: #777; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .class-instr { font-size: 12px; color: #3a6a9b; width: 110px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.class-type  { font-size: 12px; color: #5a7a5a; width: 90px;  flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .src-icon   { font-size: 11px; opacity: .55; }
 .class-dur  { font-size: 12px; color: #555; width: 46px; text-align: right; flex-shrink: 0; }
 .class-tags { display: none; }
@@ -76,6 +77,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .col-head span { font-size: 11px; color: #999; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
 .col-head .ch-name  { flex: 1; min-width: 0; }
 .col-head .ch-desc  { flex: 1.2; min-width: 0; }
+.col-head .ch-type  { width: 90px;  flex-shrink: 0; white-space: nowrap; }
 .col-head .ch-instr { width: 110px; flex-shrink: 0; white-space: nowrap; }
 .col-head .ch-dur   { width: 46px; text-align: right; flex-shrink: 0; }
 .col-head .ch-tags  { display: none; }
@@ -181,9 +183,15 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
       <label>Description <span style="color:#aaa;font-weight:400">(human-readable, optional)</span></label>
       <input id="m-desc" type="text" placeholder="e.g. Full body cardio with weights">
     </div>
-    <div class="field">
-      <label>Instructor <span style="color:#aaa;font-weight:400">(auto-filled from name, optional)</span></label>
-      <input id="m-instr" type="text" placeholder="e.g. Kate  or  Kate &amp; Rachel">
+    <div class="field-row">
+      <div class="field">
+        <label>Class type <span style="color:#aaa;font-weight:400">(auto-filled)</span></label>
+        <input id="m-type" type="text" placeholder="e.g. Standing, Step, Band">
+      </div>
+      <div class="field">
+        <label>Instructor <span style="color:#aaa;font-weight:400">(auto-filled)</span></label>
+        <input id="m-instr" type="text" placeholder="e.g. Kate">
+      </div>
     </div>
     <div class="field-row">
       <div class="field">
@@ -310,8 +318,8 @@ const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit',
 const DEV = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 
 const SHEET_DEFS = {
-  files: { key: 'wp-files', cols: ['name','category','duration','instructor','tags','description','notes'] },
-  urls:  { key: 'wp-urls',  cols: ['name','category','duration','instructor','url','description','notes']  },
+  files: { key: 'wp-files', cols: ['name','category','duration','classType','instructor','tags','description','notes'] },
+  urls:  { key: 'wp-urls',  cols: ['name','category','duration','classType','instructor','url','description','notes']  },
   log:   { key: 'wp-log',   cols: ['date','class','notes']                                                 },
 };
 
@@ -409,11 +417,8 @@ function autoDescription(c) {
     }
   }
 
-  // ── Class-type modifiers ──
+  // ── Class-type modifiers (kept for noteInstrIdx context; not added to description) ──
   const typeParts = [];
-  for (const w of tagWords) { if (TAG_TYPES[w]) typeParts.push(TAG_TYPES[w]); }
-  if      (notesStr.includes('no weights'))                        typeParts.push('No Weights');
-  else if (notesStr.includes('weights') || tagsStr.includes('weights')) typeParts.push('Weights');
 
   // ── Sub-type per category ──
   let subType = '';
@@ -436,10 +441,9 @@ function autoDescription(c) {
       const m = (c.name||'').match(/^JK\s+\d+\s+(.+)$/i);
       if (m) {
         const rest = m[1].trim();
-        // If rest looks like a class-type word, put it in typeParts instead
-        if (/^weights$/i.test(rest))    typeParts.push('Weights');
-        else if (/^no weights$/i.test(rest)) typeParts.push('No Weights');
-        else subType = rest.replace(/\b\w/g, ch => ch.toUpperCase());
+        // Ignore type-only name suffixes (weights/no weights) — they go in classType field
+        if (!/^(no )?weights$/i.test(rest))
+          subType = rest.replace(/\b\w/g, ch => ch.toUpperCase());
       }
     }
   } else if (cat === 'z bp' || cat === 'bp') {
@@ -462,9 +466,22 @@ function autoDescription(c) {
   }
 
   const parts = [className];
-  if (subType)          parts.push(subType);
-  if (typeParts.length) parts.push(typeParts.join(', '));
+  if (subType) parts.push(subType);
   return parts.join(' · ');
+}
+
+function autoClassType(c) {
+  const TAG_TYPES = {'standing':'Standing','step':'Step','band':'Band'};
+  const tagWords = (c.tags ||'').toLowerCase().trim().split(/\s+/).filter(Boolean);
+  const notesStr = (c.notes||'').toLowerCase().trim();
+  const types = [];
+  for (const w of tagWords) if (TAG_TYPES[w]) types.push(TAG_TYPES[w]);
+  if      (notesStr.includes('no weights'))                                    types.push('No Weights');
+  else if (notesStr.includes('weights') || tagWords.includes('weights'))       types.push('Weights');
+  // Upper/lower body from notes (tpr, JK upper body entries)
+  if (notesStr.includes('upper body') && !types.includes('Upper Body'))        types.push('Upper Body');
+  else if (notesStr.includes('lower body') && !types.includes('Lower Body'))   types.push('Lower Body');
+  return types.join(', ');
 }
 
 function autoInstructor(c) {
@@ -491,7 +508,8 @@ function autoInstructor(c) {
 }
 
 function applyAutoDesc(e) {
-  e.description = autoDescription(e);   // always regenerate so mapping changes take effect
+  e.description = autoDescription(e);          // always regenerate so mapping changes take effect
+  e.classType   = e.classType || autoClassType(e);
   if (!e.instructor) e.instructor = autoInstructor(e);
   return e;
 }
@@ -500,8 +518,8 @@ function applyAutoDesc(e) {
 function loadFromStorage() {
   if (DEV) {
     const log = parseLogText(SEED_LOG_TEXT);
-    files   = SEED_FILES.map((o, i) => applyAutoDesc({ description: '', instructor: '', ...o, _idx: i, _src: 'drive' }));
-    urls    = SEED_URLS.map((o, i)  => applyAutoDesc({ description: '', instructor: '', ...o, _idx: i, _src: 'link'  }));
+    files   = SEED_FILES.map((o, i) => applyAutoDesc({ description: '', classType: '', instructor: '', ...o, _idx: i, _src: 'drive' }));
+    urls    = SEED_URLS.map((o, i)  => applyAutoDesc({ description: '', classType: '', instructor: '', ...o, _idx: i, _src: 'link'  }));
     logData = log.map((o, i)        => ({ ...o, _idx: i }));
     return;
   }
@@ -515,8 +533,8 @@ function loadFromStorage() {
     localStorage.setItem('wp-urls',  JSON.stringify(u));
     localStorage.setItem('wp-log',   JSON.stringify(l));
   }
-  files   = f.map((o, i) => applyAutoDesc({ description: '', instructor: '', ...o, _idx: i, _src: 'drive' }));
-  urls    = u.map((o, i) => applyAutoDesc({ description: '', instructor: '', ...o, _idx: i, _src: 'link'  }));
+  files   = f.map((o, i) => applyAutoDesc({ description: '', classType: '', instructor: '', ...o, _idx: i, _src: 'drive' }));
+  urls    = u.map((o, i) => applyAutoDesc({ description: '', classType: '', instructor: '', ...o, _idx: i, _src: 'link'  }));
   logData = l.map((o, i) => ({ ...o, _idx: i }));
 }
 
@@ -630,6 +648,7 @@ function renderCat(cat, items, lastDone) {
     return `<div class="class-row">
       <span class="class-name">${esc(c.name)}${icon}</span>
       <span class="class-desc">${esc(c.description || '')}</span>
+      <span class="class-type">${esc(c.classType || '')}</span>
       <span class="class-instr">${esc(c.instructor || '')}</span>
       <span class="class-dur">${fmtDur(c.duration)}</span>
       <span class="class-tags">${renderTags(c.tags || '')}</span>
@@ -643,6 +662,7 @@ function renderCat(cat, items, lastDone) {
   const colHead = `<div class="col-head">
     <span class="ch-name">Class</span>
     <span class="ch-desc">Description</span>
+    <span class="ch-type">Type</span>
     <span class="ch-instr">Instructor</span>
     <span class="ch-dur">Duration</span>
     <span class="ch-tags"></span>
@@ -673,7 +693,7 @@ function renderTags(tags) {
 function openAdd() {
   editTarget = null;
   document.getElementById('m-title').textContent = 'Add class';
-  ['m-name','m-desc','m-instr','m-cat','m-dur','m-tags','m-url','m-notes'].forEach(id => document.getElementById(id).value = '');
+  ['m-name','m-desc','m-type','m-instr','m-cat','m-dur','m-tags','m-url','m-notes'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('m-src').value = 'drive';
   toggleSrcFields();
   openOverlay('ov-class');
@@ -687,6 +707,7 @@ function openEdit(src, idx) {
   document.getElementById('m-title').textContent = 'Edit class';
   document.getElementById('m-name').value  = c.name;
   document.getElementById('m-desc').value  = c.description || '';
+  document.getElementById('m-type').value  = c.classType   || '';
   document.getElementById('m-instr').value = c.instructor  || '';
   document.getElementById('m-cat').value   = c.category;
   document.getElementById('m-dur').value   = c.duration;
@@ -720,6 +741,7 @@ function submitClass() {
   const record = {
     name,
     description: document.getElementById('m-desc').value.trim(),
+    classType:   document.getElementById('m-type').value.trim(),
     instructor:  document.getElementById('m-instr').value.trim(),
     category: document.getElementById('m-cat').value.trim(),
     duration: document.getElementById('m-dur').value.trim(),
