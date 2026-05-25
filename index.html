@@ -58,7 +58,8 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .class-row { display: flex; align-items: center; padding: 7px 14px; border-bottom: 1px solid #f2f4f2; gap: 8px; }
 .class-row:last-child { border-bottom: none; }
 .class-row:hover { background: #fafcfa; }
-.class-name { flex: 1; font-size: 13px; }
+.class-name { flex: 1; font-size: 13px; line-height: 1.3; }
+.class-desc { display: block; font-size: 11px; color: #888; margin-top: 1px; font-style: italic; }
 .src-icon   { font-size: 11px; opacity: .55; }
 .class-dur  { font-size: 12px; color: #555; width: 46px; text-align: right; flex-shrink: 0; }
 .class-tags { display: flex; gap: 3px; flex-shrink: 0; }
@@ -172,6 +173,10 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
     <div class="field">
       <label>Name</label>
       <input id="m-name" type="text" oninput="autoFill()" placeholder="activate 4225  or  JK 40 full body hiit">
+    </div>
+    <div class="field">
+      <label>Description <span style="color:#aaa;font-weight:400">(human-readable, optional)</span></label>
+      <input id="m-desc" type="text" placeholder="e.g. Full body cardio with weights">
     </div>
     <div class="field-row">
       <div class="field">
@@ -298,8 +303,8 @@ const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit',
 const DEV = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 
 const SHEET_DEFS = {
-  files: { key: 'wp-files', cols: ['name','category','duration','tags','notes'] },
-  urls:  { key: 'wp-urls',  cols: ['name','category','duration','url','notes']  },
+  files: { key: 'wp-files', cols: ['name','category','duration','tags','description','notes'] },
+  urls:  { key: 'wp-urls',  cols: ['name','category','duration','url','description','notes']  },
   log:   { key: 'wp-log',   cols: ['date','class','notes']                      },
 };
 
@@ -348,8 +353,8 @@ function lock() {
 function loadFromStorage() {
   if (DEV) {
     const log = parseLogText(SEED_LOG_TEXT);
-    files   = SEED_FILES.map((o, i) => ({ ...o, _idx: i, _src: 'drive' }));
-    urls    = SEED_URLS.map((o, i)  => ({ ...o, _idx: i, _src: 'link'  }));
+    files   = SEED_FILES.map((o, i) => ({ description: '', ...o, _idx: i, _src: 'drive' }));
+    urls    = SEED_URLS.map((o, i)  => ({ description: '', ...o, _idx: i, _src: 'link'  }));
     logData = log.map((o, i)        => ({ ...o, _idx: i }));
     return;
   }
@@ -363,8 +368,8 @@ function loadFromStorage() {
     localStorage.setItem('wp-urls',  JSON.stringify(u));
     localStorage.setItem('wp-log',   JSON.stringify(l));
   }
-  files   = f.map((o, i) => ({ ...o, _idx: i, _src: 'drive' }));
-  urls    = u.map((o, i) => ({ ...o, _idx: i, _src: 'link'  }));
+  files   = f.map((o, i) => ({ description: '', ...o, _idx: i, _src: 'drive' }));
+  urls    = u.map((o, i) => ({ description: '', ...o, _idx: i, _src: 'link'  }));
   logData = l.map((o, i) => ({ ...o, _idx: i }));
 }
 
@@ -475,8 +480,9 @@ function renderCat(cat, items, lastDone) {
     const ld   = lastDone[c.name];
     const days = ld ? Math.floor((Date.now() - new Date(ld)) / 86400000) : null;
     const icon = c._src === 'link' ? ' <span class="src-icon" title="Online">🔗</span>' : '';
+    const desc = c.description ? `<span class="class-desc">${esc(c.description)}</span>` : '';
     return `<div class="class-row">
-      <span class="class-name">${esc(c.name)}${icon}</span>
+      <span class="class-name">${esc(c.name)}${icon}${desc}</span>
       <span class="class-dur">${fmtDur(c.duration)}</span>
       <span class="class-tags">${renderTags(c.tags || '')}</span>
       <span class="class-last ${days===null?'never':days>60?'overdue':''}">${days===null?'never':fmtDate(ld)}</span>
@@ -517,7 +523,7 @@ function renderTags(tags) {
 function openAdd() {
   editTarget = null;
   document.getElementById('m-title').textContent = 'Add class';
-  ['m-name','m-cat','m-dur','m-tags','m-url','m-notes'].forEach(id => document.getElementById(id).value = '');
+  ['m-name','m-desc','m-cat','m-dur','m-tags','m-url','m-notes'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('m-src').value = 'drive';
   toggleSrcFields();
   openOverlay('ov-class');
@@ -530,6 +536,7 @@ function openEdit(src, idx) {
   editTarget = { src, idx };
   document.getElementById('m-title').textContent = 'Edit class';
   document.getElementById('m-name').value  = c.name;
+  document.getElementById('m-desc').value  = c.description || '';
   document.getElementById('m-cat').value   = c.category;
   document.getElementById('m-dur').value   = c.duration;
   document.getElementById('m-src').value   = src;
@@ -560,7 +567,8 @@ function submitClass() {
   if (!name) { showErr('Name is required'); return; }
   const src = document.getElementById('m-src').value, isLink = src === 'link';
   const record = {
-    name, category: document.getElementById('m-cat').value.trim(),
+    name, description: document.getElementById('m-desc').value.trim(),
+    category: document.getElementById('m-cat').value.trim(),
     duration: document.getElementById('m-dur').value.trim(),
     tags: isLink ? '' : document.getElementById('m-tags').value.trim(),
     url:  isLink ? document.getElementById('m-url').value.trim() : '',
