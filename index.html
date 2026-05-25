@@ -150,6 +150,12 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .sched-dur   { font-size: 12px; color: #555; width: 46px; text-align: right; flex-shrink: 0; }
 .dur-short   { font-size: 10px; font-weight: 600; padding: 1px 5px; border-radius: 8px; background: #e8f3fd; color: #1a6fa8; flex-shrink: 0; letter-spacing: .3px; }
 .dur-long    { font-size: 10px; font-weight: 600; padding: 1px 5px; border-radius: 8px; background: #fdf0e8; color: #b56018; flex-shrink: 0; letter-spacing: .3px; }
+.last-badge  { font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 8px; white-space: nowrap; flex-shrink: 0; }
+.last-today  { background: #2e6b30; color: #fff; }
+.last-recent { background: #d4edda; color: #1e5a20; }
+.last-mid    { background: #fff3cd; color: #7a5800; }
+.last-stale  { background: #f0f0f0; color: #777; }
+.last-new    { background: #ede8f5; color: #5a3a8a; }
 .sched-empty { padding: 9px 14px; font-size: 12px; color: #bbb; font-style: italic; }
 .sched-add-row { display: none; align-items: center; gap: 8px; padding: 8px 14px; border-top: 1px solid #f0f0f0; }
 .sched-add-row.open { display: flex; }
@@ -434,7 +440,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.41'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.42'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -2183,12 +2189,12 @@ function renderDayCatList() {
   let pool = [...nameMap.values()];
   if (dayCatSelected) pool = pool.filter(c => c.category === dayCatSelected);
   if (q) pool = pool.filter(c => c.name.toLowerCase().includes(q));
-  // Sort: never done first, then least recently done
+  // Sort: most recently done first, never-done at bottom
   pool.sort((a, b) => {
     const la = lastDone[a.name] || '', lb = lastDone[b.name] || '';
     if (!la && !lb) return a.name.localeCompare(b.name);
-    if (!la) return -1; if (!lb) return 1;
-    return la.localeCompare(lb);
+    if (!la) return 1; if (!lb) return -1;
+    return lb.localeCompare(la);
   });
   const el = document.getElementById('day-cat-list');
   if (!pool.length) {
@@ -2199,14 +2205,15 @@ function renderDayCatList() {
   el.innerHTML = pool.map(c => {
     const cnt = counts[c.name] || 0;
     const ld  = lastDone[c.name];
-    let lastStr = '';
+    let lastStr = '', badgeCls = '';
     if (ld) {
       const days = Math.floor((todayMs - new Date(ld + 'T00:00:00').getTime()) / 86400000);
-      lastStr = days === 0 ? 'today' : days === 1 ? '1d ago' : `${days}d ago`;
+      lastStr  = days === 0 ? 'Today' : days === 1 ? '1d ago' : `${days}d ago`;
+      badgeCls = days === 0 ? 'last-today' : days <= 5 ? 'last-recent' : days <= 14 ? 'last-mid' : 'last-stale';
     } else {
-      lastStr = '✨ new';
+      lastStr = 'New'; badgeCls = 'last-new';
     }
-    const meta = [fmtDur(c.duration), durLabel(c.duration), cnt ? cnt+'×' : '', lastStr].filter(Boolean).join(' · ');
+    const meta = [fmtDur(c.duration), durLabel(c.duration), cnt ? cnt+'×' : ''].filter(Boolean).join(' · ');
     const linkBtn = c.url
       ? `<a href="${esc(c.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()"
             class="btn-sm btn-ghost" style="text-decoration:none;padding:3px 7px;font-size:11px">▶</a>`
@@ -2214,8 +2221,9 @@ function renderDayCatList() {
     return `<div class="day-cat-item" onclick="dayEditAddClass('${esc(c.name).replace(/'/g,"\\'")}')">
       <div style="flex:1;min-width:0">
         <div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.name)}</div>
-        <div style="font-size:11px;color:#999;margin-top:1px">${esc(meta)}</div>
+        ${meta ? `<div style="font-size:11px;color:#999;margin-top:1px">${esc(meta)}</div>` : ''}
       </div>
+      <span class="last-badge ${badgeCls}">${esc(lastStr)}</span>
       ${linkBtn}
     </div>`;
   }).join('');
