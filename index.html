@@ -400,7 +400,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.34'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.35'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -418,7 +418,8 @@ let files         = [];
 let urls          = [];
 let logData       = [];
 let schedule      = {};
-let dateOverrides = {};   // 'YYYY-MM-DD' → string[]  (per-date override of the template)
+let dateOverrides = {};   // 'YYYY-MM-DD' → string[]  (per-date class list for that specific date)
+let rotation      = {};   // category → next rotation index (persisted so it advances across weeks)
 let editTarget = null;
 let logEditIdx    = null;
 let dayEditState  = null;   // { day, isPast, dateStr }
@@ -629,6 +630,7 @@ function loadFromStorage() {
       localStorage.setItem('wp-schedule', JSON.stringify(schedule));
     }
     try { dateOverrides = JSON.parse(localStorage.getItem('wp-overrides') || '{}'); } catch { dateOverrides = {}; }
+    try { rotation     = JSON.parse(localStorage.getItem('wp-rotation')  || '{}'); } catch { rotation     = {}; }
     return;
   }
   const raw = k => { try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch { return []; } };
@@ -651,6 +653,7 @@ function loadFromStorage() {
     localStorage.setItem('wp-schedule', JSON.stringify(schedule));
   }
   try { dateOverrides = JSON.parse(localStorage.getItem('wp-overrides') || '{}'); } catch { dateOverrides = {}; }
+  try { rotation     = JSON.parse(localStorage.getItem('wp-rotation')  || '{}'); } catch { rotation     = {}; }
 }
 
 function persist() {
@@ -666,6 +669,10 @@ function persistSchedule() {
 
 function persistOverrides() {
   localStorage.setItem('wp-overrides', JSON.stringify(dateOverrides));
+}
+
+function persistRotation() {
+  localStorage.setItem('wp-rotation', JSON.stringify(rotation));
 }
 
 // One-time repair: remove schedule-generated entries that were retroactively
@@ -1580,7 +1587,7 @@ function renderSchedule() {
   const autoGenBtn = schedWeekOffset <= 1
     ? `<div style="text-align:center;margin-top:4px;margin-bottom:6px">
          <button class="btn btn-ghost" style="font-size:12px;padding:4px 14px;color:#2e6b30;border-color:#b2d8b2" onclick="autoGenWeek()">
-           ✨ Auto-fill week from schedule
+           🔄 Generate week (rotate classes)
          </button>
        </div>`
     : '';
@@ -1838,19 +1845,56 @@ function tiDeleteDateEntry(dateStr, day, idx) {
   renderSchedule();
 }
 
-// Copy the schedule template into per-date entries for every non-past day of the displayed week.
+// Auto-generate a week's classes by rotating through each day's category.
+// The schedule template defines which category belongs on each day of the week;
+// rotation advances a persistent per-category index so every class eventually gets used.
 function autoGenWeek() {
-  const isoD  = dt => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+  const isoD     = dt => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
   const todayMid = new Date(); todayMid.setHours(0,0,0,0);
   const { map: dm } = weekDates(schedWeekOffset);
+  const classMap = buildClassMap();
+
+  // Build sorted class list per category (both Drive files and URL classes)
+  const catGroups = {};
+  for (const c of classMap.values()) {
+    const cat = (c.category || '').toLowerCase().trim();
+    if (!cat) continue;
+    (catGroups[cat] = catGroups[cat] || []).push(c);
+  }
+  for (const cat of Object.keys(catGroups)) {
+    catGroups[cat].sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  // Pick next class for a category and advance the rotation index.
+  function nextInCategory(cat) {
+    const list = catGroups[(cat||'').toLowerCase().trim()] || [];
+    if (!list.length) return null;
+    const key = (cat||'').toLowerCase().trim();
+    const idx  = (rotation[key] || 0) % list.length;
+    rotation[key] = (rotation[key] || 0) + 1;
+    return list[idx].name;
+  }
+
+  let filled = 0;
   for (const day of DAYS) {
     const dt = dm[day];
     if (dt < todayMid) continue;
-    dateOverrides[isoD(dt)] = [...(schedule[day] || [])];
+    const templateClasses = schedule[day] || [];
+    if (!templateClasses.length) continue;   // day has no category defined — skip
+
+    dateOverrides[isoD(dt)] = templateClasses.map(templateClass => {
+      const c   = classMap.get(templateClass.toLowerCase().trim());
+      const cat = c?.category;
+      return nextInCategory(cat) || templateClass;  // fallback: reuse template class
+    });
+    filled++;
   }
+
   persistOverrides();
+  persistRotation();
   renderSchedule();
-  showOk('Week filled from schedule template');
+  if (filled) showOk('Week generated — classes rotated through each category');
+  else showOk('No days to fill (add classes to the schedule template first)');
 }
 
 function tiAddStart(day, isPast, dateStr) {
