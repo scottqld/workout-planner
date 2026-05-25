@@ -104,6 +104,19 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .log-class { flex: 1; font-size: 13px; }
 .log-notes { font-size: 12px; color: #999; flex: 0 0 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* ── Schedule tab ── */
+.sched-day-head { display: flex; align-items: center; padding: 10px 14px; background: #eaf3ea; }
+.sched-day-name { font-weight: 600; color: #2e6b30; flex: 1; font-size: 14px; }
+.sched-item { display: flex; align-items: center; padding: 7px 14px; border-bottom: 1px solid #f2f4f2; gap: 8px; }
+.sched-item:last-child { border-bottom: none; }
+.sched-item:hover { background: #fafcfa; }
+.sched-name  { flex: 1; font-size: 13px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sched-meta  { font-size: 12px; color: #888; flex-shrink: 0; }
+.sched-dur   { font-size: 12px; color: #555; width: 46px; text-align: right; flex-shrink: 0; }
+.sched-empty { padding: 9px 14px; font-size: 12px; color: #bbb; font-style: italic; }
+.sched-add-row { display: none; align-items: center; gap: 8px; padding: 8px 14px; border-top: 1px solid #f0f0f0; }
+.sched-add-row.open { display: flex; }
+
 /* ── Placeholder ── */
 .placeholder { padding: 40px; text-align: center; color: #999; font-size: 13px; }
 
@@ -165,7 +178,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
     </div>
 
     <div id="tab-schedule" style="display:none">
-      <div class="placeholder">Schedule — coming soon</div>
+      <div id="schedule-out"></div>
     </div>
     <div id="tab-log" style="display:none">
       <div class="toolbar">
@@ -331,9 +344,10 @@ const SHEET_DEFS = {
 };
 
 // ── State ──────────────────────────────────────────────────────────────────
-let files   = [];
-let urls    = [];
-let logData = [];
+let files    = [];
+let urls     = [];
+let logData  = [];
+let schedule = {};
 let editTarget = null;
 
 // ── Boot ───────────────────────────────────────────────────────────────────
@@ -544,6 +558,7 @@ function loadFromStorage() {
   files   = f.map((o, i) => applyAutoDesc({ description: '', descCustom: false, classType: '', instructor: '', ...o, _idx: i, _src: 'drive' }));
   urls    = u.map((o, i) => applyAutoDesc({ description: '', descCustom: false, classType: '', instructor: '', ...o, _idx: i, _src: 'link'  }));
   logData = l.map((o, i) => ({ ...o, _idx: i }));
+  try { schedule = JSON.parse(localStorage.getItem('wp-schedule') || '{}'); } catch { schedule = {}; }
 }
 
 function persist() {
@@ -551,6 +566,10 @@ function persist() {
   localStorage.setItem('wp-files', JSON.stringify(files.map(strip)));
   localStorage.setItem('wp-urls',  JSON.stringify(urls.map(strip)));
   localStorage.setItem('wp-log',   JSON.stringify(logData.map(strip)));
+}
+
+function persistSchedule() {
+  localStorage.setItem('wp-schedule', JSON.stringify(schedule));
 }
 
 // ── CSV ────────────────────────────────────────────────────────────────────
@@ -933,7 +952,85 @@ function showTab(name) {
   document.querySelectorAll('.nav-btn').forEach((b,i) => {
     b.classList.toggle('active', ['classes','schedule','log'][i]===name);
   });
-  if (name === 'log') renderLog();
+  if (name === 'log')      renderLog();
+  if (name === 'schedule') renderSchedule();
+}
+
+// ── Schedule tab ───────────────────────────────────────────────────────────
+const DAYS       = ['mon','tue','wed','thu','fri','sat','sun'];
+const DAY_LABELS = { mon:'Monday', tue:'Tuesday', wed:'Wednesday', thu:'Thursday', fri:'Friday', sat:'Saturday', sun:'Sunday' };
+
+function buildClassMap() {
+  const m = new Map();
+  for (const c of files) { const k=(c.name||'').toLowerCase().trim(); if(k && !m.has(k)) m.set(k,c); }
+  for (const c of urls)  { const k=(c.name||'').toLowerCase().trim(); if(k) m.set(k,c); }
+  return m;
+}
+
+function renderSchedule() {
+  const classMap = buildClassMap();
+  const allNames = [...classMap.keys()].sort();
+
+  const html = DAYS.map(day => {
+    const items = (schedule[day] || []);
+    const rows  = items.map((name, idx) => {
+      const c    = classMap.get((name||'').toLowerCase().trim());
+      const desc = c?.description || name;
+      const meta = [c?.classType, c?.instructor].filter(Boolean).join(' · ');
+      const dur  = c ? fmtDur(c.duration) : '';
+      return `<div class="sched-item">
+        <span class="sched-name" title="${esc(name)}">${esc(desc)}</span>
+        ${meta ? `<span class="sched-meta">${esc(meta)}</span>` : ''}
+        <span class="sched-dur">${dur}</span>
+        <button class="btn-sm btn-del" onclick="removeScheduleItem('${day}',${idx})">×</button>
+      </div>`;
+    }).join('');
+
+    const opts = allNames.map(n => `<option value="${esc(n)}">`).join('');
+
+    return `<div class="cat-card" style="margin-bottom:10px">
+      <div class="sched-day-head">
+        <span class="sched-day-name">${DAY_LABELS[day]}</span>
+        <button class="btn btn-ghost" style="font-size:12px;padding:5px 10px" onclick="showSchedAdd('${day}')">+ Add</button>
+      </div>
+      <div>
+        ${rows || '<div class="sched-empty">Rest day</div>'}
+        <div class="sched-add-row" id="sched-add-${day}">
+          <input class="search" id="sched-input-${day}" list="sched-list-${day}"
+            placeholder="Type class name…" style="flex:1;font-size:13px;padding:6px 10px"
+            onkeydown="if(event.key==='Enter')confirmSchedAdd('${day}');if(event.key==='Escape')hideSchedAdd('${day}')">
+          <datalist id="sched-list-${day}">${opts}</datalist>
+          <button class="btn btn-primary" style="font-size:12px;padding:6px 10px" onclick="confirmSchedAdd('${day}')">Add</button>
+          <button class="btn btn-ghost"   style="font-size:12px;padding:6px 10px" onclick="hideSchedAdd('${day}')">Cancel</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('schedule-out').innerHTML = html;
+}
+
+function showSchedAdd(day) {
+  document.getElementById(`sched-add-${day}`).classList.add('open');
+  document.getElementById(`sched-input-${day}`).focus();
+}
+function hideSchedAdd(day) {
+  document.getElementById(`sched-add-${day}`).classList.remove('open');
+  document.getElementById(`sched-input-${day}`).value = '';
+}
+function confirmSchedAdd(day) {
+  const val = document.getElementById(`sched-input-${day}`).value.trim();
+  if (!val) return;
+  if (!schedule[day]) schedule[day] = [];
+  schedule[day].push(val);
+  persistSchedule();
+  renderSchedule();
+}
+function removeScheduleItem(day, idx) {
+  if (!schedule[day]) return;
+  schedule[day].splice(idx, 1);
+  persistSchedule();
+  renderSchedule();
 }
 
 // ── Log tab ────────────────────────────────────────────────────────────────
