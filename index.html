@@ -148,6 +148,8 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .sched-name  { flex: 1; font-size: 13px; min-width: 0; overflow: hidden; }
 .sched-meta  { font-size: 12px; color: #888; flex-shrink: 0; }
 .sched-dur   { font-size: 12px; color: #555; width: 46px; text-align: right; flex-shrink: 0; }
+.dur-short   { font-size: 10px; font-weight: 600; padding: 1px 5px; border-radius: 8px; background: #e8f3fd; color: #1a6fa8; flex-shrink: 0; letter-spacing: .3px; }
+.dur-long    { font-size: 10px; font-weight: 600; padding: 1px 5px; border-radius: 8px; background: #fdf0e8; color: #b56018; flex-shrink: 0; letter-spacing: .3px; }
 .sched-empty { padding: 9px 14px; font-size: 12px; color: #bbb; font-style: italic; }
 .sched-add-row { display: none; align-items: center; gap: 8px; padding: 8px 14px; border-top: 1px solid #f0f0f0; }
 .sched-add-row.open { display: flex; }
@@ -432,7 +434,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.40'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.41'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -1334,6 +1336,15 @@ function durToMins(code) {
   if (s.length < 3) return parseInt(s, 10) || 0;
   return (parseInt(s.slice(0, -2), 10) || 0) + (parseInt(s.slice(-2), 10) || 0) / 60;
 }
+function durLabel(code) {
+  if (!code) return '';
+  return durToMins(code) < 34 ? 'SHORT' : 'LONG';
+}
+function durBadge(code) {
+  const lbl = durLabel(code);
+  if (!lbl) return '';
+  return `<span class="dur-${lbl.toLowerCase()}">${lbl}</span>`;
+}
 function fmtMins(m) {
   const h = Math.floor(m / 60), r = Math.round(m % 60);
   return h === 0 ? `${r}m` : r === 0 ? `${h}h` : `${h}h ${r}m`;
@@ -1793,6 +1804,7 @@ function renderSchedule() {
             <span class="sched-name"><span style="display:block">${esc(name)}</span>${sub ? `<span style="display:block;font-size:11px;color:#aaa;font-weight:400;margin-top:1px">${esc(sub)}</span>` : ''}</span>
             ${count > 0 ? `<span class="count-pill" title="Done ${count} time${count!==1?'s':''}">${count}×</span>` : ''}
             ${entry.notes ? `<span class="sched-meta">${esc(entry.notes)}</span>` : ''}
+            ${c ? durBadge(c.duration) : ''}
             <span class="sched-dur">${dur}</span>
             ${schedLinkBtn(c, name)}
             <button class="btn-sm btn-del" onclick="event.stopPropagation();tiDelete('log','${day}',${entry._idx})">×</button>
@@ -1815,6 +1827,7 @@ function renderSchedule() {
           <span class="sched-name"><span style="display:block">${esc(name)}</span>${sub ? `<span style="display:block;font-size:11px;color:#aaa;font-weight:400;margin-top:1px">${esc(sub)}</span>` : ''}</span>
           ${count > 0 ? `<span class="count-pill" title="Done ${count} time${count!==1?'s':''}">${count}×</span>` : ''}
           ${meta ? `<span class="sched-meta">${esc(meta)}</span>` : ''}
+          ${c ? durBadge(c.duration) : ''}
           <span class="sched-dur">${dur}</span>
           ${schedLinkBtn(c, name)}
           <button class="btn-sm btn-del" onclick="event.stopPropagation();tiDeleteDateEntry('${dateStr}','${day}',${idx})">×</button>
@@ -2193,7 +2206,7 @@ function renderDayCatList() {
     } else {
       lastStr = '✨ new';
     }
-    const meta = [fmtDur(c.duration), cnt ? cnt+'×' : '', lastStr].filter(Boolean).join(' · ');
+    const meta = [fmtDur(c.duration), durLabel(c.duration), cnt ? cnt+'×' : '', lastStr].filter(Boolean).join(' · ');
     const linkBtn = c.url
       ? `<a href="${esc(c.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()"
             class="btn-sm btn-ghost" style="text-decoration:none;padding:3px 7px;font-size:11px">▶</a>`
@@ -2220,6 +2233,7 @@ function renderDayEditItems() {
           return `<div id="day-row-${e._idx}" style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f2f2f2">
             <span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e['class'])}</span>
             ${e.notes ? `<span style="font-size:11px;color:#aaa;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.notes)}</span>` : ''}
+            ${c ? durBadge(c.duration) : ''}
             ${c ? `<span style="font-size:12px;color:#aaa">${fmtDur(c.duration)}</span>` : ''}
             <button class="btn-sm" onclick="dayItemStartEdit('day-row-${e._idx}','log',${e._idx})">✏</button>
             <button class="btn-sm btn-del" onclick="dayEditRemoveLog(${e._idx})">×</button>
@@ -2233,6 +2247,7 @@ function renderDayEditItems() {
           const c = classMap.get((name||'').toLowerCase().trim());
           return `<div id="day-row-s${idx}" style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f2f2f2">
             <span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(name)}</span>
+            ${c ? durBadge(c.duration) : ''}
             ${c ? `<span style="font-size:12px;color:#aaa">${fmtDur(c.duration)}</span>` : ''}
             <button class="btn-sm" onclick="dayItemStartEdit('day-row-s${idx}','sched',${idx})">✏</button>
             <button class="btn-sm btn-del" onclick="dayEditRemoveSched('${day}',${idx})">×</button>
