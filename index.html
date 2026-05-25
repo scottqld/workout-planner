@@ -391,7 +391,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.22'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.23'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -436,6 +436,7 @@ function startApp() {
   commitScheduleToLog();
   render();
   showTab('schedule');
+  checkPastWeekAutoLog();   // after render so the status bar is visible
 }
 
 // ── PIN ────────────────────────────────────────────────────────────────────
@@ -679,25 +680,26 @@ function removeRetroScheduleEntries() {
   }
 }
 
-// Commit this week's schedule to the log for days that have already passed
-// and have no existing log entry. Current week only — never retroactive.
+// Commit this week's schedule to the log for days that have already passed.
+// Uses class-level dedup so a manual entry on a day doesn't block scheduled classes.
 function commitScheduleToLog() {
   if (!Object.keys(schedule).length) return;
-  const todayMid = new Date(); todayMid.setHours(0, 0, 0, 0);
-  const isoD = dt =>
-    `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
-  const loggedDates = new Set(logData.map(e => e.date).filter(Boolean));
-  const newEntries  = [];
-  const { map: dm } = weekDates(0); // current week only
+  const today = new Date(); today.setHours(0,0,0,0);
+  const isoD  = dt => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+  const existing   = new Set(logData.map(e => `${e.date}|${(e['class']||'').toLowerCase().trim()}`));
+  const newEntries = [];
+  const { map: dm } = weekDates(0);
   for (const day of DAYS) {
     const dt = dm[day];
-    if (dt >= todayMid) continue;   // skip today and future
-    const items = schedule[day] || [];
-    if (!items.length) continue;
+    if (dt >= today) continue;
     const dateStr = isoD(dt);
-    if (loggedDates.has(dateStr)) continue;
-    for (const name of items) newEntries.push({ date: dateStr, class: name, notes: '', fromSchedule: true });
-    loggedDates.add(dateStr);
+    for (const name of (schedule[day] || [])) {
+      const key = `${dateStr}|${name.toLowerCase().trim()}`;
+      if (!existing.has(key)) {
+        newEntries.push({ date: dateStr, class: name, notes: '', fromSchedule: true });
+        existing.add(key);
+      }
+    }
   }
   if (!newEntries.length) return;
   const strip = ({ _idx, ...o }) => o;
@@ -705,6 +707,51 @@ function commitScheduleToLog() {
   all.sort((a, b) => (a.date||'').localeCompare(b.date||''));
   if (!DEV) localStorage.setItem('wp-log', JSON.stringify(all));
   logData = all.map((o, i) => ({ ...o, _idx: i }));
+}
+
+// Auto-log completed past weeks from the timetable.
+// Runs on app open; only processes weeks not already in wp-autolog.
+// Shows a brief banner so the user knows entries were added.
+function checkPastWeekAutoLog() {
+  if (!Object.keys(schedule).length) return;
+  const logged  = new Set(JSON.parse(localStorage.getItem('wp-autolog') || '[]'));
+  const today   = new Date(); today.setHours(0,0,0,0);
+  const isoD    = dt => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+  const existing = new Set(logData.map(e => `${e.date}|${(e['class']||'').toLowerCase().trim()}`));
+  const newEntries = [];
+  const newWeeks   = [];
+  // Check up to 8 completed past weeks (current week handled by commitScheduleToLog)
+  for (let wkOffset = -1; wkOffset >= -8; wkOffset--) {
+    const { monday, map: dm } = weekDates(wkOffset);
+    if (dm['sun'] >= today) continue;                    // week not yet complete
+    const { week, year } = isoWeekNumber(monday);
+    const weekStr = `${year}-W${String(week).padStart(2,'0')}`;
+    if (logged.has(weekStr)) continue;                   // already processed
+    for (const day of DAYS) {
+      const dateStr = isoD(dm[day]);
+      for (const name of (schedule[day] || [])) {
+        const key = `${dateStr}|${name.toLowerCase().trim()}`;
+        if (!existing.has(key)) {
+          newEntries.push({ date: dateStr, class: name, notes: '', fromSchedule: true });
+          existing.add(key);
+        }
+      }
+    }
+    newWeeks.push(weekStr);
+  }
+  if (!newWeeks.length) return;
+  if (newEntries.length) {
+    const strip = ({ _idx, ...o }) => o;
+    const all = [...logData.map(strip), ...newEntries];
+    all.sort((a, b) => (a.date||'').localeCompare(b.date||''));
+    logData = all.map((o, i) => ({ ...o, _idx: i }));
+    if (!DEV) localStorage.setItem('wp-log', JSON.stringify(logData.map(strip)));
+  }
+  localStorage.setItem('wp-autolog', JSON.stringify([...logged, ...newWeeks]));
+  if (newEntries.length) {
+    const wLabel = newWeeks.length === 1 ? 'last week' : `${newWeeks.length} past weeks`;
+    showOk(`Auto-logged ${newEntries.length} session${newEntries.length!==1?'s':''} from ${wLabel} — edit in Log if needed`);
+  }
 }
 
 // ── CSV ────────────────────────────────────────────────────────────────────
