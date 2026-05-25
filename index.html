@@ -163,7 +163,6 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .sched-chip           { display:inline-flex;align-items:center;gap:4px;padding:3px 5px 3px 8px;border-radius:14px;border:1px solid #d4e8d4;background:#f4f9f4;font-size:12px;cursor:pointer;max-width:100%; }
 .sched-chip:hover     { background:#dff0df;border-color:#9ccb9c; }
 .sched-chip.done      { border-color:#2e6b30;background:#eaf5ea; }
-.sched-chip-past      { opacity:.45; }
 .sched-chip-name  { overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px; }
 .sched-chip-dur   { font-size:11px;color:#888;flex-shrink:0; }
 .sched-chip-del   { background:none;border:none;color:#c00;font-size:13px;padding:0 1px;line-height:1;cursor:pointer;flex-shrink:0;opacity:.6; }
@@ -454,7 +453,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.46'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.47'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -1742,7 +1741,8 @@ function schedLinkBtn(c, name) {
 }
 
 function renderSchedule() {
-  const classMap  = buildClassMap();
+  const classMap   = buildClassMap();
+  const dateLogMap = buildDateLogMap();
   const isoDate   = dt => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
   const dayFmt    = dt => dt.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
   const DOW_KEY   = ['sun','mon','tue','wed','thu','fri','sat'];
@@ -1790,30 +1790,34 @@ function renderSchedule() {
   const renderWeekBlock = (weekDays, weekLabel) => {
     const header = `<div style="padding:5px 12px 3px;font-size:11px;font-weight:600;color:#2e6b30;background:#eaf3ea;letter-spacing:.5px;text-transform:uppercase">${weekLabel}</div>`;
     const rowsHtml = weekDays.map(({ dt, dayKey }) => {
-      const today   = isToday(dt);
-      const isPast  = dt < todayDt;
-      const dateStr = isoDate(dt);
-      const items   = dateOverrides.hasOwnProperty(dateStr) ? dateOverrides[dateStr] : (schedule[dayKey] || []);
+      const today     = isToday(dt);
+      const isPast    = dt < todayDt;
+      const dateStr   = isoDate(dt);
+      const loggedCnt = isPast ? (dateLogMap.get(dateStr) || []).length : 0;
+      const isDone    = loggedCnt > 0;
+      const items     = dateOverrides.hasOwnProperty(dateStr) ? dateOverrides[dateStr] : (schedule[dayKey] || []);
       let chips;
       if (items.length > 0) {
         chips = items.map((name, idx) => {
           const c   = classMap.get((name||'').toLowerCase().trim());
           const dur = c ? `<span class="sched-chip-dur">${fmtDur(c.duration)}</span>` : '';
           const db  = c ? durBadge(c.duration) : '';
-          return `<span class="sched-chip${isPast ? ' sched-chip-past' : ''}" onclick="openDayEdit('${dayKey}',false,'${dateStr}')">
+          return `<span class="sched-chip" onclick="openDayEdit('${dayKey}',false,'${dateStr}')">
             <span class="sched-chip-name">${esc(name)}</span>${dur}${db}
             <button class="sched-chip-del" onclick="event.stopPropagation();tiDeleteDateEntry('${dateStr}','${dayKey}',${idx})">×</button>
           </span>`;
         }).join('');
       } else {
-        chips = `<span class="sched-rest">${isPast ? '—' : 'rest'}</span>`;
+        chips = `<span class="sched-rest">rest</span>`;
       }
       const todayDot  = today ? ' <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#2e6b30;vertical-align:middle;margin-left:3px"></span>' : '';
+      const doneTick  = isDone ? `<span style="display:block;font-size:10px;color:#2e6b30;font-weight:700;line-height:1.2">✓ done</span>` : '';
       const nameStyle = isPast && !today ? ' past' : '';
       return `<div class="sched-row${today ? ' row-today' : ''}">
         <div class="sched-row-day">
           <span class="sched-row-name${nameStyle}">${DAY_SHORT[dayKey]}${todayDot}</span>
           <span class="sched-row-date">${dayFmt(dt)}</span>
+          ${doneTick}
         </div>
         <div class="sched-row-chips">${chips}</div>
         <button class="sched-add-btn" title="Edit day" onclick="openDayEdit('${dayKey}',false,'${dateStr}')">+</button>
