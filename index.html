@@ -384,10 +384,14 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
       → add your site URL to <em>Authorised JavaScript origins</em>.
     </p>
     <label style="font-size:13px;font-weight:600;color:#333">
-      Google OAuth Client ID <span style="font-size:11px;font-weight:400;color:#888">(for Drive uploads)</span>
+      Google OAuth Client ID <span style="font-size:11px;font-weight:400;color:#888">(for Drive uploads &amp; play)</span>
       <input id="sync-google-client-id" type="text" placeholder="xxxxxxxxxxxx.apps.googleusercontent.com"
         style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid #cdd;border-radius:6px;font-size:13px;font-weight:400">
     </label>
+    <div style="display:flex;align-items:center;gap:10px;margin:8px 0 16px">
+      <button class="btn btn-ghost" id="sync-drive-connect-btn" style="font-size:12px;padding:6px 12px" onclick="connectGoogleDrive()">Connect Google Drive</button>
+      <span id="sync-drive-status" style="font-size:12px;color:#888"></span>
+    </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
       <button class="btn btn-primary" onclick="saveSyncSettings()">Save &amp; Sync Now</button>
       <button class="btn btn-ghost" onclick="syncPull(true)">Pull from cloud</button>
@@ -476,7 +480,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.61'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.62'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -508,6 +512,7 @@ let syncUrl = '';         // Firebase Realtime DB base URL
 let syncKey = '';         // User's private sync-key (path component)
 let googleClientId = '';  // Google OAuth 2.0 Client ID (for Drive uploads)
 let _syncPushTimer = null;
+let _driveTokenExpiry = 0; // Unix ms when the current Drive token expires
 
 // ── Boot ───────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -866,6 +871,16 @@ function openSync() {
   document.getElementById('sync-key-input').value       = syncKey;
   document.getElementById('sync-google-client-id').value = googleClientId;
   document.getElementById('sync-msg').textContent = '';
+  // Reflect Drive connection state
+  const btn    = document.getElementById('sync-drive-connect-btn');
+  const status = document.getElementById('sync-drive-status');
+  const connected = _driveToken && Date.now() < _driveTokenExpiry - 60000;
+  btn.disabled    = false;
+  btn.textContent = connected ? '✓ Connected' : 'Connect Google Drive';
+  btn.style.cssText = connected ? 'font-size:12px;padding:6px 12px;background:#e6f4e7;color:#1d5c1f' : 'font-size:12px;padding:6px 12px';
+  status.style.color = connected ? '#2e6b30' : '#888';
+  status.textContent = connected ? 'Drive authorised — play buttons work directly.'
+    : (googleClientId ? 'Not connected. Save Client ID then click Connect.' : '');
   openOverlay('ov-sync');
 }
 
@@ -1257,18 +1272,46 @@ function getDriveToken() {
       reject(new Error('No Google Client ID — add it in ☁ Sync settings'));
       return;
     }
+    // Reuse cached token if still valid (60-second buffer)
+    if (_driveToken && Date.now() < _driveTokenExpiry - 60000) {
+      resolve(_driveToken);
+      return;
+    }
     await loadGISScript();
     const client = google.accounts.oauth2.initTokenClient({
       client_id: googleClientId,
       scope:     'https://www.googleapis.com/auth/drive.file',
       callback:  (resp) => {
         if (resp.error) { reject(new Error(resp.error_description || resp.error)); return; }
-        _driveToken = resp.access_token;
+        _driveToken       = resp.access_token;
+        _driveTokenExpiry = Date.now() + (resp.expires_in || 3600) * 1000;
         resolve(resp.access_token);
       },
     });
     client.requestAccessToken();
   });
+}
+
+// One-time Drive authorisation from the Sync settings modal.
+async function connectGoogleDrive() {
+  const btn    = document.getElementById('sync-drive-connect-btn');
+  const status = document.getElementById('sync-drive-status');
+  btn.disabled = true;
+  btn.textContent = 'Connecting…';
+  status.textContent = '';
+  try {
+    await getDriveToken();
+    btn.textContent = '✓ Connected';
+    btn.style.cssText += ';background:#e6f4e7;color:#1d5c1f';
+    status.style.color = '#2e6b30';
+    status.textContent = 'Drive authorised — play buttons work directly.';
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = 'Connect Google Drive';
+    btn.style.background = btn.style.color = '';
+    status.style.color = '#c0392b';
+    status.textContent = '⚠ ' + e.message;
+  }
 }
 
 async function uploadToDrive() {
@@ -1375,24 +1418,23 @@ async function openDriveFile(name) {
   // Use session cache
   if (key in _driveFileCache) {
     if (_driveFileCache[key]) { window.open(_driveFileCache[key], '_blank'); return; }
-    alert(`No file found in Drive for "${name}".\nUse Edit to set the URL directly.`);
+    alert(`No matching file found in Drive for "${name}".\nUse Edit to set the URL directly.`);
     return;
   }
 
-  // No Client ID → fall back to folder
-  if (!googleClientId) {
-    window.open(`https://drive.google.com/drive/folders/${DRIVE_FOLDER_ID}`, '_blank');
+  // Never trigger OAuth from a play button — require a pre-obtained token.
+  // The user authorises once via ☁ Sync → "Connect Google Drive".
+  const token = _driveToken && Date.now() < _driveTokenExpiry - 60000 ? _driveToken : null;
+  if (!token) {
+    if (googleClientId) {
+      alert(`Google Drive not connected.\nOpen ☁ Sync settings and click "Connect Google Drive", then try again.`);
+    } else {
+      window.open(`https://drive.google.com/drive/folders/${DRIVE_FOLDER_ID}`, '_blank');
+    }
     return;
   }
 
-  let token;
-  try { token = await getDriveToken(); }
-  catch (e) {
-    window.open(`https://drive.google.com/drive/folders/${DRIVE_FOLDER_ID}`, '_blank');
-    return;
-  }
-
-  // Search using the first word of the class name (Drive 'contains' searches substring)
+  // Search the folder using the first word (Drive 'contains' = substring match)
   const firstWord = key.split(/\s+/)[0].replace(/'/g, "\\'");
   const q = encodeURIComponent(`'${DRIVE_FOLDER_ID}' in parents and name contains '${firstWord}' and trashed=false`);
   try {
@@ -1400,9 +1442,15 @@ async function openDriveFile(name) {
       `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,webViewLink)&orderBy=name&pageSize=50`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
+    if (res.status === 401) {
+      // Token expired mid-session — clear it and ask user to reconnect
+      _driveToken = null; _driveTokenExpiry = 0;
+      alert('Drive session expired. Open ☁ Sync settings and reconnect, then try again.');
+      return;
+    }
     const data = await res.json();
 
-    // Score each result: count how many words from the class name appear in the filename
+    // Score each result by how many words from the class name appear in the filename
     const words = key.split(/\s+/).filter(Boolean);
     let best = null, bestScore = -1;
     for (const f of (data.files || [])) {
@@ -1417,7 +1465,7 @@ async function openDriveFile(name) {
       window.open(link, '_blank');
     } else {
       _driveFileCache[key] = null;
-      alert(`No file found in Drive for "${name}".\nUse Edit to set the URL directly.`);
+      alert(`No matching file found in Drive for "${name}".\nUse Edit to set the URL directly.`);
     }
   } catch (e) {
     window.open(`https://drive.google.com/drive/folders/${DRIVE_FOLDER_ID}`, '_blank');
