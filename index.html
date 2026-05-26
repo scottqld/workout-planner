@@ -171,6 +171,12 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .sched-chip-del:hover { opacity:1; }
 .sched-rest       { font-size:12px;color:#ccc;font-style:italic; }
 .sched-add-btn    { flex-shrink:0;background:none;border:1px solid #c8dcc8;color:#4a8a4a;border-radius:50%;width:22px;height:22px;font-size:16px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0; }
+/* Day done tick */
+@keyframes tickPop { 0%{transform:scale(.6);opacity:0} 70%{transform:scale(1.15)} 100%{transform:scale(1);opacity:1} }
+.day-tick-btn  { flex-shrink:0;display:inline-flex;align-items:center;gap:5px;padding:5px 13px;border-radius:20px;border:2px solid #4a8a4a;background:none;color:#4a8a4a;font-size:13px;font-weight:700;cursor:pointer;transition:background .15s,color .15s,transform .1s,box-shadow .15s;letter-spacing:.3px; }
+.day-tick-btn:hover  { background:#4a8a4a;color:#fff;box-shadow:0 2px 8px rgba(46,107,48,.35); }
+.day-tick-btn:active { transform:scale(.93); }
+.day-tick-done { flex-shrink:0;display:inline-flex;align-items:center;gap:5px;padding:5px 13px;border-radius:20px;background:#2e6b30;color:#fff;font-size:13px;font-weight:700;letter-spacing:.3px;animation:tickPop .28s cubic-bezier(.34,1.56,.64,1) both; }
 .sched-add-btn:hover { background:#eaf3ea;border-color:#2e6b30; }
 .sched-add-row { display: none; align-items: center; gap: 8px; padding: 8px 14px; border-top: 1px solid #f0f0f0; }
 .sched-add-row.open { display: flex; }
@@ -454,7 +460,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.81'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.83'; // auto-bumped by pre-commit hook
 const SEED_LOG_VER = '1.78'; // bump to force-reset log from SEED_LOG_TEXT
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -2254,8 +2260,8 @@ function renderSchedule() {
       const todayDot  = today ? ' <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#2e6b30;vertical-align:middle;margin-left:3px"></span>' : '';
       const doneTick  = isPast && items.length
         ? isDone
-          ? `<span style="flex-shrink:0;font-size:11px;font-weight:700;color:#fff;background:#2e6b30;border-radius:10px;padding:2px 8px;letter-spacing:.2px">✓ done</span>`
-          : `<button onclick="logDay('${dateStr}','${dayKey}')" title="Mark as done" style="flex-shrink:0;font-size:11px;font-weight:600;color:#aaa;background:none;border:1.5px solid #ccc;border-radius:10px;padding:2px 8px;letter-spacing:.2px;cursor:pointer">✓</button>`
+          ? `<span class="day-tick-done">✓ done</span>`
+          : `<button class="day-tick-btn" onclick="logDay('${dateStr}','${dayKey}')" title="Mark as done">✓ done</button>`
         : '';
       const nameStyle = isPast && !today ? ' past' : '';
       return `<div class="sched-row${today ? ' row-today' : ''}">
