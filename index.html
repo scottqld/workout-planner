@@ -180,6 +180,9 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .sched-chip-dur   { font-size:11px;color:#888;flex-shrink:0; }
 .sched-chip-del   { background:none;border:none;color:#c00;font-size:13px;padding:0 1px;line-height:1;cursor:pointer;flex-shrink:0;opacity:.6; }
 .sched-chip-del:hover { opacity:1; }
+.sched-chip-cat       { display:inline-flex;align-items:center;gap:5px;padding:3px 5px 3px 9px;border-radius:14px;border:1.5px dashed #7ab87c;background:#f4fbf4;font-size:12px;cursor:pointer;max-width:100%;font-weight:600;color:#3a7a3c; }
+.sched-chip-cat:hover { background:#e4f5e4;border-color:#4a8a4a; }
+.sched-chip-pick      { font-size:10px;color:#7ab87c;font-weight:400;flex-shrink:0; }
 .sched-rest       { font-size:12px;color:#ccc;font-style:italic; }
 .sched-add-btn    { flex-shrink:0;background:none;border:1px solid #c8dcc8;color:#4a8a4a;border-radius:50%;width:22px;height:22px;font-size:16px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0; }
 /* Day done tick */
@@ -466,6 +469,18 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
   </div>
 </div>
 
+<!-- ── Category slot picker ── -->
+<div class="overlay" id="ov-cat-pick">
+  <div class="modal">
+    <div style="display:flex;align-items:center;margin-bottom:12px">
+      <h3 id="cat-pick-title" style="margin:0;flex:1;font-size:16px">Pick class</h3>
+      <button onclick="closeOverlay('ov-cat-pick')" style="background:none;border:none;font-size:20px;color:#aaa;cursor:pointer;line-height:1;padding:0 2px">&times;</button>
+    </div>
+    <div id="cat-pick-cats" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px"></div>
+    <div id="cat-pick-list" style="max-height:320px;overflow-y:auto;border:1px solid #e8ede8;border-radius:6px"></div>
+  </div>
+</div>
+
 <!-- ── Day edit modal ── -->
 <div class="overlay" id="ov-day-edit">
   <div class="modal">
@@ -495,7 +510,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.102'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.103'; // auto-bumped by pre-commit hook
 const SEED_LOG_VER = '1.78'; // bump to force-reset log from SEED_LOG_TEXT
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -2346,7 +2361,7 @@ function renderSchedule() {
 
   const autoGenBtn = `<div style="text-align:center;margin-bottom:8px">
     <button class="btn btn-ghost" style="font-size:12px;padding:4px 14px;color:#2e6b30;border-color:#b2d8b2" onclick="autoGenWeek()">
-      🔄 Generate week (rotate classes)
+      🗓 Generate week from last week
     </button>
   </div>`;
 
@@ -2370,6 +2385,16 @@ function renderSchedule() {
       let chips;
       if (items.length > 0) {
         chips = items.map((name, idx) => {
+          // ── Category placeholder ──
+          if ((name||'').startsWith('@cat:')) {
+            const catName = name.slice(5);
+            const safeDate = dateStr, safeDay = dayKey;
+            return `<span class="sched-chip-cat" onclick="if(!event.target.closest('button'))openCatSlotPicker('${safeDate}','${safeDay}',${idx},'${esc(catName)}')">
+              ${esc(catName)}<span class="sched-chip-pick">▸ pick</span>
+              <button type="button" class="sched-chip-del" onclick="tiDeleteDateEntry('${safeDate}','${safeDay}',${idx})">×</button>
+            </span>`;
+          }
+          // ── Normal class chip ──
           const c    = classMap.get((name||'').toLowerCase().trim());
           const dur  = c ? `<span class="sched-chip-dur">${fmtDur(c.duration)}</span>` : '';
           const db   = c ? durBadge(c.duration) : '';
@@ -2598,44 +2623,137 @@ function tiDeleteDateEntry(dateStr, day, idx) {
 function autoGenWeek() {
   const isoDate  = dt => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
   const todayMid = new Date(); todayMid.setHours(0,0,0,0);
-  const now      = todayMid.getTime();
   const { map: dm } = weekDates(0);
   const classMap = buildClassMap();
 
-  // Build usage index from log
-  const usage = {};
-  for (const e of logData) {
-    if (!e.class || !e.date) continue;
-    const k = e.class.toLowerCase().trim();
-    if (!usage[k]) usage[k] = { count: 0, lastDone: '' };
-    usage[k].count++;
-    if (e.date > usage[k].lastDone) usage[k].lastDone = e.date;
-  }
+  // Build class-name → category lookup
+  const nameToCat = new Map();
+  for (const [k, c] of classMap) { if (c.category) nameToCat.set(k, c.category); }
 
-  // Score and shuffle the full class library
-  const pool = [...classMap.values()]
-    .map(c => {
-      const u          = usage[c.name.toLowerCase().trim()];
-      const count      = u?.count || 0;
-      const daysSince  = u?.lastDone
-        ? Math.floor((now - new Date(u.lastDone + 'T00:00:00').getTime()) / 86400000)
-        : 9999;
-      return { name: c.name, score: count * 10000 - daysSince + Math.random() * 500 };
-    })
-    .sort((a, b) => a.score - b.score);   // ascending: best candidates first
-
-  // Assign one class to every non-past day; no repeats within the week
-  let poolIdx = 0;
+  // Previous week's dates for each weekday
+  const prevDate = {};
   for (const day of DAYS) {
-    const dt      = dm[day];
-    if (dt < todayMid) continue;
-    if (poolIdx >= pool.length) break;
-    dateOverrides[isoDate(dt)] = [pool[poolIdx++].name];
+    const dt = new Date(dm[day]); dt.setDate(dt.getDate() - 7);
+    prevDate[day] = isoDate(dt);
   }
 
+  // Log entries grouped by date
+  const logByDate = {};
+  for (const e of logData) {
+    if (e.date && e['class']) (logByDate[e.date] = logByDate[e.date] || []).push(e['class']);
+  }
+
+  // Generate category placeholders for each non-past day this week
+  let assigned = 0;
+  for (const day of DAYS) {
+    const dt = dm[day];
+    if (dt < todayMid) continue;                         // skip past days
+    const newDate = isoDate(dt);
+    const prevClasses = logByDate[prevDate[day]] || [];
+
+    // Collect categories from last week's log for this weekday
+    const cats = [];
+    for (const name of prevClasses) {
+      const cat = nameToCat.get(name.toLowerCase().trim());
+      if (cat && !cats.includes(cat)) cats.push(cat);
+    }
+
+    // Fallback: look at existing schedule/override for this day
+    if (!cats.length) {
+      const existing = dateOverrides.hasOwnProperty(newDate)
+        ? dateOverrides[newDate]
+        : (schedule[day] || []);
+      for (const name of existing) {
+        if (name.startsWith('@cat:')) {
+          const c = name.slice(5);
+          if (!cats.includes(c)) cats.push(c);
+        } else {
+          const cat = nameToCat.get(name.toLowerCase().trim());
+          if (cat && !cats.includes(cat)) cats.push(cat);
+        }
+      }
+    }
+
+    if (cats.length) {
+      dateOverrides[newDate] = cats.map(c => `@cat:${c}`);
+      assigned++;
+    }
+  }
+
+  if (!assigned) { showErr('No previous week data to generate from'); return; }
   persistOverrides();
   renderSchedule();
-  showOk('Week generated — least-used classes prioritised');
+  showOk('Week generated — tap a category chip to pick a class');
+}
+
+// ── Category slot picker ──────────────────────────────────────────────────
+let _catPickState = null;  // { dateStr, dayKey, slotIdx, currentCat }
+
+function openCatSlotPicker(dateStr, dayKey, slotIdx, catName) {
+  const DAY_LONG = { mon:'Monday',tue:'Tuesday',wed:'Wednesday',thu:'Thursday',fri:'Friday',sat:'Saturday',sun:'Sunday' };
+  _catPickState = { dateStr, dayKey, slotIdx, currentCat: catName };
+  document.getElementById('cat-pick-title').textContent = DAY_LONG[dayKey] || dayKey;
+  _renderCatPickCats();
+  _renderCatPickList();
+  openOverlay('ov-cat-pick');
+}
+
+function _renderCatPickCats() {
+  const nameMap = buildClassMap();
+  const cats = [...new Set([...nameMap.values()].map(c => c.category).filter(Boolean))]
+    .sort((a, b) => { const ai=CAT_ORDER.indexOf(a),bi=CAT_ORDER.indexOf(b); return (ai<0?99:ai)-(bi<0?99:bi)||a.localeCompare(b); });
+  const sel = _catPickState?.currentCat || '';
+  document.getElementById('cat-pick-cats').innerHTML =
+    cats.map(cat => `<button class="cat-chip${cat===sel?' active':''}" onclick="catPickSelectCat('${esc(cat)}')">${esc(cat)}</button>`).join('');
+}
+
+function catPickSelectCat(cat) {
+  if (_catPickState) _catPickState.currentCat = cat;
+  _renderCatPickCats();
+  _renderCatPickList();
+}
+
+function _renderCatPickList() {
+  const cat     = _catPickState?.currentCat || '';
+  const nameMap = buildClassMap();
+  const counts  = {};
+  for (const e of logData) {
+    const n = (e['class']||'').trim(); if (n) counts[n] = (counts[n]||0) + 1;
+  }
+  let pool = [...nameMap.values()].filter(c => c.category === cat);
+  // Sort by done-count descending, then alphabetical
+  pool.sort((a, b) => (counts[b.name]||0) - (counts[a.name]||0) || a.name.localeCompare(b.name));
+
+  const el = document.getElementById('cat-pick-list');
+  if (!pool.length) {
+    el.innerHTML = '<p style="color:#bbb;font-size:13px;padding:10px 12px;margin:0">No classes in this category.</p>';
+    return;
+  }
+  el.innerHTML = pool.map(c => {
+    const cnt  = counts[c.name] || 0;
+    const meta = [fmtDur(c.duration), cnt ? `${cnt}×` : ''].filter(Boolean).join(' · ');
+    const safeName = esc(c.name).replace(/'/g, "\\'");
+    return `<div class="day-cat-item" onclick="catPickSelectClass('${safeName}')">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.name)}</div>
+        ${meta ? `<div style="font-size:11px;color:#999;margin-top:1px">${esc(meta)}</div>` : ''}
+      </div>
+      ${cnt ? `<span class="count-pill" style="flex-shrink:0">${cnt}×</span>` : '<span style="width:28px"></span>'}
+    </div>`;
+  }).join('');
+}
+
+function catPickSelectClass(name) {
+  if (!_catPickState) return;
+  const { dateStr, dayKey, slotIdx } = _catPickState;
+  // Ensure there's a dateOverride array for this date
+  if (!dateOverrides.hasOwnProperty(dateStr)) {
+    dateOverrides[dateStr] = [...(schedule[dayKey] || [])];
+  }
+  dateOverrides[dateStr][slotIdx] = name;
+  persistOverrides();
+  closeOverlay('ov-cat-pick');
+  renderSchedule();
 }
 
 function tiAddStart(day, isPast, dateStr) {
@@ -3126,7 +3244,7 @@ function setAllCats(open) {
 function openOverlay(id)  { document.getElementById(id).classList.add('open'); }
 function closeOverlay(id) { document.getElementById(id).classList.remove('open'); }
 document.addEventListener('click', e => {
-  ['ov-class','ov-import','ov-backup','ov-log','ov-log-day','ov-day-edit','ov-sync'].forEach(id => {
+  ['ov-class','ov-import','ov-backup','ov-log','ov-log-day','ov-cat-pick','ov-day-edit','ov-sync'].forEach(id => {
     if (e.target === document.getElementById(id)) closeOverlay(id);
   });
 });
