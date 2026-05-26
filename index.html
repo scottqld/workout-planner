@@ -453,7 +453,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.52'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.53'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -1796,6 +1796,13 @@ function renderSchedule() {
     </button>
   </div>`;
 
+  // Class session counts (for chips)
+  const classCounts = {};
+  for (const e of logData) {
+    const k = (e['class'] || '').trim().toLowerCase();
+    if (k) classCounts[k] = (classCounts[k] || 0) + 1;
+  }
+
   // Render a week block (header + 7 rows)
   const renderWeekBlock = (weekDays, weekLabel) => {
     const header = `<div style="padding:5px 12px 3px;font-size:11px;font-weight:600;color:#2e6b30;background:#eaf3ea;letter-spacing:.5px;text-transform:uppercase">${weekLabel}</div>`;
@@ -1809,11 +1816,13 @@ function renderSchedule() {
       let chips;
       if (items.length > 0) {
         chips = items.map((name, idx) => {
-          const c   = classMap.get((name||'').toLowerCase().trim());
-          const dur = c ? `<span class="sched-chip-dur">${fmtDur(c.duration)}</span>` : '';
-          const db  = c ? durBadge(c.duration) : '';
+          const c     = classMap.get((name||'').toLowerCase().trim());
+          const dur   = c ? `<span class="sched-chip-dur">${fmtDur(c.duration)}</span>` : '';
+          const db    = c ? durBadge(c.duration) : '';
+          const cnt   = classCounts[(name||'').trim().toLowerCase()] || 0;
+          const pill  = cnt ? `<span class="count-pill">${cnt}×</span>` : '';
           return `<span class="sched-chip" onclick="openDayEdit('${dayKey}',false,'${dateStr}')">
-            <span class="sched-chip-name">${esc(name)}</span>${dur}${db}
+            <span class="sched-chip-name">${esc(name)}</span>${dur}${db}${pill}
             <button class="sched-chip-del" onclick="event.stopPropagation();tiDeleteDateEntry('${dateStr}','${dayKey}',${idx})">×</button>
           </span>`;
         }).join('');
