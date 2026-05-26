@@ -300,6 +300,15 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
       <label>URL <span style="color:#aaa;font-weight:400">(YouTube, Google Drive, etc.)</span></label>
       <input id="m-url" type="text" placeholder="https://www.youtube.com/…">
     </div>
+    <div class="field" id="field-upload">
+      <label>Upload video to Google Drive <span style="color:#aaa;font-weight:400">(optional — sets URL automatically)</span></label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="file" id="m-upload-file" accept="video/*"
+               style="flex:1;font-size:12px;border:1px solid #cdd;border-radius:5px;padding:6px;font-family:inherit">
+        <button class="btn btn-ghost" style="flex-shrink:0;white-space:nowrap" onclick="uploadToDrive()">⬆ Upload</button>
+      </div>
+      <div id="m-upload-status" style="font-size:11px;margin-top:5px;color:#888;min-height:16px"></div>
+    </div>
     <div class="field">
       <label>Notes</label>
       <input id="m-notes" type="text">
@@ -365,6 +374,18 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
           style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid #cdd;border-radius:6px;font-size:13px;font-weight:400">
       </label>
     </div>
+    <hr style="border:none;border-top:1px solid #eee;margin:4px 0 12px">
+    <p style="font-size:12px;color:#888;margin-bottom:10px">
+      <strong style="color:#555">Google Drive uploads</strong> — needed to upload video files when adding a class.
+      Setup: <a href="https://console.cloud.google.com/" target="_blank" style="color:#2e6b30">Google Cloud Console</a>
+      → APIs &amp; Services → Credentials → Create OAuth 2.0 Client ID → Web Application
+      → add your site URL to <em>Authorised JavaScript origins</em>.
+    </p>
+    <label style="font-size:13px;font-weight:600;color:#333">
+      Google OAuth Client ID <span style="font-size:11px;font-weight:400;color:#888">(for Drive uploads)</span>
+      <input id="sync-google-client-id" type="text" placeholder="xxxxxxxxxxxx.apps.googleusercontent.com"
+        style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid #cdd;border-radius:6px;font-size:13px;font-weight:400">
+    </label>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
       <button class="btn btn-primary" onclick="saveSyncSettings()">Save &amp; Sync Now</button>
       <button class="btn btn-ghost" onclick="syncPull(true)">Pull from cloud</button>
@@ -453,7 +474,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.57'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.58'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -481,8 +502,9 @@ let schedWeekOffset = 0;
 let dayCatSelected = '';
 
 // ── Sync state ─────────────────────────────────────────────────────────────
-let syncUrl = '';   // Firebase Realtime DB base URL
-let syncKey = '';   // User's private sync-key (path component)
+let syncUrl = '';         // Firebase Realtime DB base URL
+let syncKey = '';         // User's private sync-key (path component)
+let googleClientId = '';  // Google OAuth 2.0 Client ID (for Drive uploads)
 let _syncPushTimer = null;
 
 // ── Boot ───────────────────────────────────────────────────────────────────
@@ -739,9 +761,10 @@ function persistOverrides() {
 function loadSyncConfig() {
   try {
     const cfg = JSON.parse(localStorage.getItem('wp-sync') || '{}');
-    syncUrl = (cfg.url || '').trim().replace(/\/$/, '');
-    syncKey = (cfg.key || '').trim();
-  } catch { syncUrl = ''; syncKey = ''; }
+    syncUrl        = (cfg.url             || '').trim().replace(/\/$/, '');
+    syncKey        = (cfg.key             || '').trim();
+    googleClientId = (cfg.googleClientId  || '').trim();
+  } catch { syncUrl = ''; syncKey = ''; googleClientId = ''; }
   updateSyncDot();
 }
 
@@ -837,35 +860,50 @@ function updateSyncDot() {
 }
 
 function openSync() {
-  document.getElementById('sync-url-input').value = syncUrl;
-  document.getElementById('sync-key-input').value = syncKey;
+  document.getElementById('sync-url-input').value       = syncUrl;
+  document.getElementById('sync-key-input').value       = syncKey;
+  document.getElementById('sync-google-client-id').value = googleClientId;
   document.getElementById('sync-msg').textContent = '';
   openOverlay('ov-sync');
 }
 
 function saveSyncSettings() {
-  const url = document.getElementById('sync-url-input').value.trim().replace(/\/$/, '');
-  const key = document.getElementById('sync-key-input').value.trim();
-  if (!url || !key) {
-    document.getElementById('sync-msg').textContent = 'Please fill in both fields.';
+  const url      = document.getElementById('sync-url-input').value.trim().replace(/\/$/, '');
+  const key      = document.getElementById('sync-key-input').value.trim();
+  const clientId = document.getElementById('sync-google-client-id').value.trim();
+  const hasFirebase = url && key;
+  const hasDrive    = !!clientId;
+  if (!hasFirebase && !hasDrive) {
+    document.getElementById('sync-msg').textContent = 'Please fill in at least one section.';
+    document.getElementById('sync-msg').style.color = '#c0392b';
+    return;
+  }
+  if ((url && !key) || (!url && key)) {
+    document.getElementById('sync-msg').textContent = 'Please fill in both Firebase URL and Sync Key.';
     document.getElementById('sync-msg').style.color = '#c0392b';
     return;
   }
   syncUrl = url;
   syncKey = key;
-  localStorage.setItem('wp-sync', JSON.stringify({ url, key }));
+  googleClientId = clientId;
+  localStorage.setItem('wp-sync', JSON.stringify({ url, key, googleClientId: clientId }));
   updateSyncDot();
   document.getElementById('sync-msg').style.color = '#2e6b30';
-  syncPush(true);
+  if (hasFirebase) {
+    syncPush(true);
+  } else {
+    document.getElementById('sync-msg').textContent = 'Google Client ID saved.';
+  }
 }
 
 function clearSyncConfig() {
   if (!confirm('Remove sync configuration? Your local data is unaffected.')) return;
-  syncUrl = ''; syncKey = '';
+  syncUrl = ''; syncKey = ''; googleClientId = '';
   localStorage.removeItem('wp-sync');
   updateSyncDot();
-  document.getElementById('sync-url-input').value = '';
-  document.getElementById('sync-key-input').value = '';
+  document.getElementById('sync-url-input').value        = '';
+  document.getElementById('sync-key-input').value        = '';
+  document.getElementById('sync-google-client-id').value = '';
   document.getElementById('sync-msg').textContent = 'Sync removed.';
   document.getElementById('sync-msg').style.color = '#888';
 }
@@ -1178,8 +1216,145 @@ function autoFill() {
 
 function toggleSrcFields() {
   const isLink = document.getElementById('m-src').value === 'link';
-  document.getElementById('field-tags').style.display = isLink ? 'none' : '';
-  // URL field is always visible for both source types
+  document.getElementById('field-tags').style.display   = isLink ? 'none' : '';
+  document.getElementById('field-upload').style.display = isLink ? 'none' : '';
+}
+
+// ── Google Drive upload ─────────────────────────────────────────────────────
+let _gisLoaded = false;
+let _driveToken = null;
+
+function loadGISScript() {
+  return new Promise((resolve, reject) => {
+    if (_gisLoaded) { resolve(); return; }
+    if (document.getElementById('gis-script')) {
+      // already injected but event fired before we got here
+      const wait = setInterval(() => {
+        if (window.google?.accounts?.oauth2) { clearInterval(wait); _gisLoaded = true; resolve(); }
+      }, 50);
+      return;
+    }
+    const s = document.createElement('script');
+    s.id  = 'gis-script';
+    s.src = 'https://accounts.google.com/gsi/client';
+    s.onload = () => { _gisLoaded = true; resolve(); };
+    s.onerror = () => reject(new Error('Failed to load Google Identity Services'));
+    document.head.appendChild(s);
+  });
+}
+
+function getDriveToken() {
+  return new Promise(async (resolve, reject) => {
+    if (!googleClientId) {
+      reject(new Error('No Google Client ID — add it in ☁ Sync settings'));
+      return;
+    }
+    await loadGISScript();
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: googleClientId,
+      scope:     'https://www.googleapis.com/auth/drive.file',
+      callback:  (resp) => {
+        if (resp.error) { reject(new Error(resp.error_description || resp.error)); return; }
+        _driveToken = resp.access_token;
+        resolve(resp.access_token);
+      },
+    });
+    client.requestAccessToken();
+  });
+}
+
+async function uploadToDrive() {
+  const fileInput  = document.getElementById('m-upload-file');
+  const statusEl   = document.getElementById('m-upload-status');
+  const urlField   = document.getElementById('m-url');
+  const file = fileInput.files[0];
+  if (!file) { statusEl.textContent = 'Pick a video file first.'; return; }
+
+  statusEl.style.color = '#888';
+  statusEl.textContent = 'Connecting to Google…';
+
+  let token;
+  try {
+    token = await getDriveToken();
+  } catch (e) {
+    statusEl.style.color = '#c0392b';
+    statusEl.textContent = '⚠ ' + e.message;
+    return;
+  }
+
+  // 1. Initiate resumable upload session
+  statusEl.textContent = 'Starting upload…';
+  const meta = { name: file.name, parents: [DRIVE_FOLDER_ID] };
+  let uploadUrl;
+  try {
+    const initRes = await fetch(
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable',
+      {
+        method:  'POST',
+        headers: {
+          'Authorization':  `Bearer ${token}`,
+          'Content-Type':   'application/json; charset=UTF-8',
+          'X-Upload-Content-Type': file.type,
+          'X-Upload-Content-Length': file.size,
+        },
+        body: JSON.stringify(meta),
+      }
+    );
+    if (!initRes.ok) throw new Error(`Init failed: HTTP ${initRes.status}`);
+    uploadUrl = initRes.headers.get('Location');
+    if (!uploadUrl) throw new Error('No upload URL returned');
+  } catch (e) {
+    statusEl.style.color = '#c0392b';
+    statusEl.textContent = '⚠ ' + e.message;
+    return;
+  }
+
+  // 2. Upload file with progress tracking
+  await new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', uploadUrl);
+    xhr.setRequestHeader('Content-Type', file.type);
+    xhr.upload.onprogress = (ev) => {
+      if (ev.lengthComputable) {
+        const pct = Math.round(ev.loaded / ev.total * 100);
+        statusEl.textContent = `Uploading… ${pct}%`;
+      }
+    };
+    xhr.onload = async () => {
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(new Error(`Upload failed: HTTP ${xhr.status}`));
+        return;
+      }
+      const fileId = JSON.parse(xhr.responseText).id;
+      statusEl.textContent = 'Setting permissions…';
+
+      // 3. Make file readable by anyone with the link
+      try {
+        const permRes = await fetch(
+          `https://www.googleapis.com/drive/v3/files/${fileId}/permissions`,
+          {
+            method:  'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ role: 'reader', type: 'anyone' }),
+          }
+        );
+        if (!permRes.ok) console.warn('Permission set failed:', permRes.status);
+      } catch (e) { console.warn('Permission set error:', e); }
+
+      // 4. Populate URL field
+      const viewUrl = `https://drive.google.com/file/d/${fileId}/view`;
+      urlField.value = viewUrl;
+      statusEl.style.color = '#2e6b30';
+      statusEl.textContent = `✓ Uploaded — URL set`;
+      fileInput.value = '';
+      resolve();
+    };
+    xhr.onerror = () => reject(new Error('Network error during upload'));
+    xhr.send(file);
+  }).catch(e => {
+    statusEl.style.color = '#c0392b';
+    statusEl.textContent = '⚠ ' + e.message;
+  });
 }
 
 function submitClass() {
