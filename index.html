@@ -181,7 +181,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .sched-chip-del   { background:none;border:none;color:#c00;font-size:13px;padding:0 1px;line-height:1;cursor:pointer;flex-shrink:0;opacity:.6; }
 .sched-chip-del:hover { opacity:1; }
 .sched-row-cats      { display:flex;flex-wrap:wrap;gap:4px;align-items:center;flex-shrink:0; }
-.sched-cat-pill      { display:inline-flex;align-items:center;gap:3px;padding:2px 8px 2px 9px;border-radius:10px;border:1.5px solid #7ab87c;background:#f0fbf0;color:#3a7a3c;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit;letter-spacing:.2px; }
+.sched-cat-pill      { display:inline-flex;align-items:center;gap:3px;padding:2px 4px 2px 9px;border-radius:10px;border:1.5px solid #7ab87c;background:#f0fbf0;color:#3a7a3c;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;letter-spacing:.2px; }
 .sched-cat-pill:hover { background:#dff2df;border-color:#2e6b30; }
 .sched-cat-add-btn   { background:none;border:1.5px dashed #c8e4c8;color:#aacaaa;border-radius:10px;padding:2px 9px;font-size:11px;cursor:pointer;font-family:inherit;font-weight:600; }
 .sched-cat-add-btn:hover { background:#f0fbf0;border-color:#7ab87c;color:#3a7a3c; }
@@ -516,7 +516,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.108'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.109'; // auto-bumped by pre-commit hook
 const SEED_LOG_VER = '1.78'; // bump to force-reset log from SEED_LOG_TEXT
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -2395,8 +2395,7 @@ function renderSchedule() {
       // Category pills (one per @cat: slot)
       const catPillsHtml = catSlots.map(({ name, idx }) => {
         const catName = name.slice(5);
-        return `<button class="sched-cat-pill" onclick="openCatSlotPicker('${dateStr}','${dayKey}',${idx},'${esc(catName)}')">${esc(catName)}<span style="font-size:9px;opacity:.55;margin-left:2px">▾</span>
-          </button>`;
+        return `<span class="sched-cat-pill" onclick="if(!event.target.closest('button'))openCatSlotPicker('${dateStr}','${dayKey}',${idx},'${esc(catName)}')">${esc(catName)}<span style="font-size:9px;opacity:.55;margin-left:2px">▾</span><button type="button" class="sched-chip-del" onclick="tiDeleteDateEntry('${dateStr}','${dayKey}',${idx})">×</button></span>`;
       }).join('');
 
       // Class chips
