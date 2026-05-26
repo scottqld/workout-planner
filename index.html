@@ -388,9 +388,13 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
       <input id="sync-google-client-id" type="text" placeholder="xxxxxxxxxxxx.apps.googleusercontent.com"
         style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid #cdd;border-radius:6px;font-size:13px;font-weight:400">
     </label>
-    <div style="display:flex;align-items:center;gap:10px;margin:8px 0 16px">
+    <div style="display:flex;align-items:center;gap:10px;margin:8px 0 8px">
       <button class="btn btn-ghost" id="sync-drive-connect-btn" style="font-size:12px;padding:6px 12px" onclick="connectGoogleDrive()">Connect Google Drive</button>
       <span id="sync-drive-status" style="font-size:12px;color:#888"></span>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin:0 0 16px">
+      <button class="btn btn-ghost" id="sync-auto-link-btn" style="font-size:12px;padding:6px 12px" onclick="autoLinkDriveClasses()">⚡ Auto-link all classes from Drive</button>
+      <span id="sync-auto-link-status" style="font-size:12px;color:#888"></span>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
       <button class="btn btn-primary" onclick="saveSyncSettings()">Save &amp; Sync Now</button>
@@ -481,7 +485,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.68'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.69'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -1354,6 +1358,90 @@ async function connectGoogleDrive() {
     status.style.color = '#c0392b';
     status.textContent = '⚠ ' + e.message;
   }
+}
+
+// List every file in the Drive folder, fuzzy-match to Drive classes that have no
+// URL set, and save the best-matching link for each one — all in a single operation.
+async function autoLinkDriveClasses() {
+  const btn    = document.getElementById('sync-auto-link-btn');
+  const status = document.getElementById('sync-auto-link-status');
+  btn.disabled = true;
+  status.style.color = '#888';
+  status.textContent = 'Connecting…';
+
+  let token;
+  try { token = await getDriveToken(); }
+  catch (e) {
+    btn.disabled = false;
+    status.style.color = '#c0392b';
+    status.textContent = '⚠ ' + e.message;
+    return;
+  }
+
+  // Fetch all files in the folder (paginate until done)
+  status.textContent = 'Listing Drive folder…';
+  const allFiles = [];
+  let pageToken = null;
+  try {
+    do {
+      const params = new URLSearchParams({
+        q:         `'${DRIVE_FOLDER_ID}' in parents and trashed=false`,
+        fields:    'nextPageToken,files(id,name,webViewLink)',
+        pageSize:  '1000',
+        orderBy:   'name',
+      });
+      if (pageToken) params.set('pageToken', pageToken);
+      const res  = await fetch(
+        `https://www.googleapis.com/drive/v3/files?${params}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (res.status === 401) { token = null; throw new Error('Session expired — reconnect and try again.'); }
+      if (!res.ok) throw new Error(`Drive error: HTTP ${res.status}`);
+      const data = await res.json();
+      allFiles.push(...(data.files || []));
+      pageToken = data.nextPageToken || null;
+      status.textContent = `Listing Drive folder… (${allFiles.length} files found)`;
+    } while (pageToken);
+  } catch (e) {
+    btn.disabled = false;
+    status.style.color = '#c0392b';
+    status.textContent = '⚠ ' + e.message;
+    return;
+  }
+
+  if (!allFiles.length) {
+    btn.disabled = false;
+    status.style.color = '#c0392b';
+    status.textContent = '⚠ No files found in the Drive folder.';
+    return;
+  }
+
+  status.textContent = `Matching ${allFiles.length} files to classes…`;
+
+  // Score: count how many words from the class name appear in the filename
+  const unlinked = files.filter(c => !c.url);
+  let matched = 0;
+  for (const cls of unlinked) {
+    const words = cls.name.toLowerCase().trim().split(/\s+/).filter(Boolean);
+    let best = null, bestScore = -1;
+    for (const f of allFiles) {
+      const fn    = f.name.toLowerCase();
+      const score = words.filter(w => fn.includes(w)).length;
+      if (score > bestScore) { bestScore = score; best = f; }
+    }
+    if (best && bestScore > 0) {
+      files[cls._idx].url = best.webViewLink || `https://drive.google.com/file/d/${best.id}/view`;
+      matched++;
+    }
+  }
+
+  if (matched) { persist(); render(); }
+  btn.disabled = false;
+  const skipped = unlinked.length - matched;
+  status.style.color = skipped === 0 ? '#2e6b30' : '#888';
+  status.textContent = matched === unlinked.length
+    ? `✓ All ${matched} classes linked automatically.`
+    : `✓ ${matched} linked, ${skipped} unmatched (names may differ — set those via Edit).`;
 }
 
 async function uploadToDrive() {
