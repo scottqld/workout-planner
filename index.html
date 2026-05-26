@@ -471,7 +471,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.101'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.100'; // auto-bumped by pre-commit hook
 const SEED_LOG_VER = '1.78'; // bump to force-reset log from SEED_LOG_TEXT
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -2288,11 +2288,11 @@ function renderSchedule() {
   const DOW_KEY   = ['sun','mon','tue','wed','thu','fri','sat'];
   const DAY_SHORT = { mon:'Mon',tue:'Tue',wed:'Wed',thu:'Thu',fri:'Fri',sat:'Sat',sun:'Sun' };
 
-  // Build two full weeks starting from the Monday of the displayed week (offset by schedWeekOffset)
+  // Build two full weeks: Mon this week → Sun next week (always 14 days)
   const todayDt = new Date(); todayDt.setHours(0,0,0,0);
   const dow = todayDt.getDay(); // 0=Sun
   const monday = new Date(todayDt);
-  monday.setDate(todayDt.getDate() - (dow === 0 ? 6 : dow - 1) + schedWeekOffset * 7); // Mon of displayed week
+  monday.setDate(todayDt.getDate() - (dow === 0 ? 6 : dow - 1)); // Mon of current week
   const weeks = [0, 1].map(wk => {
     return DAYS.map((dayKey, i) => {
       const dt = new Date(monday);
@@ -2400,15 +2400,7 @@ function renderSchedule() {
       </div>`
     : '';
 
-  const navHtml = `<div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:10px">
-    <button class="btn btn-ghost" style="font-size:12px;padding:4px 12px" onclick="schedWeekOffset--;renderSchedule()">← Back</button>
-    ${schedWeekOffset !== 0
-      ? `<button class="btn btn-ghost" style="font-size:12px;padding:4px 12px;color:#2e6b30;border-color:#b2d8b2" onclick="schedWeekOffset=0;renderSchedule()">Today</button>`
-      : `<span style="display:inline-block;width:70px"></span>`}
-    <button class="btn btn-ghost" style="font-size:12px;padding:4px 12px" onclick="schedWeekOffset++;renderSchedule()">Next →</button>
-  </div>`;
-
-  document.getElementById('schedule-out').innerHTML = navHtml + streakHtml + summaryLine + autoGenBtn + cardsHtml;
+  document.getElementById('schedule-out').innerHTML = streakHtml + summaryLine + autoGenBtn + cardsHtml;
 }
 
 // ── Inline timetable editing ───────────────────────────────────────────────
