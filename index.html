@@ -453,7 +453,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.56'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.57'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -1094,10 +1094,8 @@ function renderCat(cat, items, lastDone, classCounts) {
       <span class="class-tags">${renderTags(c.tags || '')}</span>
       <span class="class-link-col">${
         c.url
-          ? `<a href="${esc(c.url)}" target="_blank" rel="noopener" class="class-link-btn" title="${esc(c.url)}">▶</a>`
-          : c._src === 'drive'
-            ? `<a href="https://drive.google.com/drive/search?q=${encodeURIComponent(c.name)}&driveId=${DRIVE_FOLDER_ID}" target="_blank" rel="noopener" class="class-link-btn drive" title="Find in Google Drive: ${esc(c.name)}">▶</a>`
-            : ''
+          ? `<a href="${esc(c.url)}" target="_blank" rel="noopener" class="class-link-btn" title="Play">▶</a>`
+          : ''
       }</span>
       <span class="class-count" title="${count} time${count!==1?'s':''} done">${count || ''}</span>
       <span class="class-last ${days===null?'never':days>60?'overdue':''}">${days===null?'never':fmtDate(ld)}</span>
@@ -1742,10 +1740,6 @@ function isToday(dt) {
 
 function schedLinkBtn(c, name) {
   if (c?.url) return `<a href="${esc(c.url)}" target="_blank" class="class-link-btn" title="Play" onclick="event.stopPropagation()">▶</a>`;
-  if (c?._src === 'drive') {
-    const q = encodeURIComponent(name);
-    return `<a href="https://drive.google.com/drive/search?q=${q}&driveId=${DRIVE_FOLDER_ID}" target="_blank" class="class-link-btn drive" title="Find in Drive" onclick="event.stopPropagation()">▶</a>`;
-  }
   return '';
 }
 
