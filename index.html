@@ -357,55 +357,24 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <div class="overlay" id="ov-sync">
   <div class="modal">
     <h3>☁ Cross-device Sync</h3>
-    <p style="font-size:13px;color:#555;margin-bottom:4px">
-      Syncs your data to Firebase Realtime Database so any device sees the same workouts, schedule, and history.
+    <p style="font-size:13px;color:#555;margin-bottom:16px">
+      Syncs your workouts, schedule, and history across all devices automatically.
     </p>
-    <p style="font-size:12px;color:#888;margin-bottom:16px">
-      Free setup: <a href="https://console.firebase.google.com/" target="_blank" style="color:#2e6b30">console.firebase.google.com</a>
-      → New project → Build → Realtime Database → Create → Rules → set <code style="font-size:11px;background:#f4f4f4;padding:1px 4px;border-radius:3px">".read":true,".write":true</code> → copy the database URL below.
-    </p>
-    <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:16px">
-      <label style="font-size:13px;font-weight:600;color:#333">
-        Firebase Database URL
-        <input id="sync-url-input" type="url" placeholder="https://your-project-default-rtdb.firebaseio.com"
-          style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid #cdd;border-radius:6px;font-size:13px;font-weight:400">
-      </label>
-      <label style="font-size:13px;font-weight:600;color:#333">
-        Sync Key <span style="font-size:11px;font-weight:400;color:#888">(private passphrase — use the same key on every device)</span>
-        <input id="sync-key-input" type="text" placeholder="e.g. my-workout-key-2024"
-          style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid #cdd;border-radius:6px;font-size:13px;font-weight:400">
-      </label>
-    </div>
-    <hr style="border:none;border-top:1px solid #eee;margin:4px 0 12px">
-    <p style="font-size:12px;color:#888;margin-bottom:10px">
-      <strong style="color:#555">Google Drive uploads</strong> — needed to upload video files when adding a class.
-      Setup: <a href="https://console.cloud.google.com/" target="_blank" style="color:#2e6b30">Google Cloud Console</a>
-      → APIs &amp; Services → Credentials → Create OAuth 2.0 Client ID → Web Application
-      → add your site URL to <em>Authorised JavaScript origins</em>.
-    </p>
-    <label style="font-size:13px;font-weight:600;color:#333">
-      Google OAuth Client ID <span style="font-size:11px;font-weight:400;color:#888">(for Drive uploads &amp; play)</span>
-      <input id="sync-google-client-id" type="text" placeholder="xxxxxxxxxxxx.apps.googleusercontent.com"
-        style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid #cdd;border-radius:6px;font-size:13px;font-weight:400">
-    </label>
-    <div style="display:flex;align-items:center;gap:10px;margin:8px 0 8px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
       <button class="btn btn-ghost" id="sync-drive-connect-btn" style="font-size:12px;padding:6px 12px" onclick="connectGoogleDrive()">Connect Google Drive</button>
       <span id="sync-drive-status" style="font-size:12px;color:#888"></span>
     </div>
-    <div style="display:flex;align-items:center;gap:10px;margin:0 0 16px">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
       <button class="btn btn-ghost" id="sync-auto-link-btn" style="font-size:12px;padding:6px 12px" onclick="autoLinkDriveClasses()">⚡ Auto-link all classes from Drive</button>
       <span id="sync-auto-link-status" style="font-size:12px;color:#888"></span>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-      <button class="btn btn-primary" onclick="saveSyncSettings()">Save &amp; Sync Now</button>
       <button class="btn btn-ghost" onclick="syncPull(true)">Pull from cloud</button>
       <button class="btn btn-ghost" onclick="syncPush(true)">Push to cloud</button>
-      <button class="btn btn-ghost" onclick="copyConfigLink()" title="Copy a link that pre-fills these settings in any browser">📋 Copy config link</button>
     </div>
     <div id="sync-msg" style="font-size:13px;min-height:18px;color:#2e6b30"></div>
     <div class="modal-actions" style="margin-top:16px">
       <button class="btn btn-ghost" onclick="closeOverlay('ov-sync')">Close</button>
-      <button class="btn" style="background:#fde8e8;color:#8b1c1c" onclick="clearSyncConfig()">Remove sync</button>
     </div>
   </div>
 </div>
@@ -485,7 +454,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.72'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.73'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -876,9 +845,6 @@ function updateSyncDot() {
 }
 
 function openSync() {
-  document.getElementById('sync-url-input').value       = syncUrl;
-  document.getElementById('sync-key-input').value       = syncKey;
-  document.getElementById('sync-google-client-id').value = googleClientId;
   document.getElementById('sync-msg').textContent = '';
   // Reflect Drive connection state
   const btn    = document.getElementById('sync-drive-connect-btn');
@@ -888,19 +854,18 @@ function openSync() {
   btn.textContent = connected ? '✓ Connected' : 'Connect Google Drive';
   btn.style.cssText = connected ? 'font-size:12px;padding:6px 12px;background:#e6f4e7;color:#1d5c1f' : 'font-size:12px;padding:6px 12px';
   status.style.color = connected ? '#2e6b30' : '#888';
-  status.textContent = connected ? 'Drive authorised — play buttons work directly.'
-    : (googleClientId ? 'Not connected. Save Client ID then click Connect.' : '');
+  status.textContent = connected ? 'Drive authorised — play buttons work directly.' : '';
   openOverlay('ov-sync');
 }
 
 function saveSyncSettings() {
-  const url      = document.getElementById('sync-url-input').value.trim().replace(/\/$/, '');
-  const key      = document.getElementById('sync-key-input').value.trim();
-  const clientId = document.getElementById('sync-google-client-id').value.trim();
+  const url      = syncUrl;
+  const key      = syncKey;
+  const clientId = googleClientId;
   const hasFirebase = url && key;
   const hasDrive    = !!clientId;
   if (!hasFirebase && !hasDrive) {
-    document.getElementById('sync-msg').textContent = 'Please fill in at least one section.';
+    document.getElementById('sync-msg').textContent = 'Sync not configured.';
     document.getElementById('sync-msg').style.color = '#c0392b';
     return;
   }
@@ -923,14 +888,11 @@ function saveSyncSettings() {
 }
 
 function clearSyncConfig() {
-  if (!confirm('Remove sync configuration? Your local data is unaffected.')) return;
-  syncUrl = ''; syncKey = ''; googleClientId = '';
+  if (!confirm('Reset sync to defaults? Your local data is unaffected.')) return;
+  syncUrl = DEFAULT_SYNC_URL; syncKey = DEFAULT_SYNC_KEY; googleClientId = DEFAULT_CLIENT_ID;
   localStorage.removeItem('wp-sync');
   updateSyncDot();
-  document.getElementById('sync-url-input').value        = '';
-  document.getElementById('sync-key-input').value        = '';
-  document.getElementById('sync-google-client-id').value = '';
-  document.getElementById('sync-msg').textContent = 'Sync removed.';
+  document.getElementById('sync-msg').textContent = 'Sync reset to defaults.';
   document.getElementById('sync-msg').style.color = '#888';
 }
 
