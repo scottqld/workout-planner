@@ -454,7 +454,8 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.73'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.75'; // auto-bumped by pre-commit hook
+const SEED_LOG_VER = '1.74'; // bump to force-reset log from SEED_LOG_TEXT
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -703,6 +704,12 @@ function loadFromStorage() {
   }
   const raw = k => { try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch { return []; } };
   let f = raw('wp-files'), u = raw('wp-urls'), l = raw('wp-log');
+  // Force-reset log when seed version changes (fixes corrupted log data)
+  if (localStorage.getItem('wp-log-seed-ver') !== SEED_LOG_VER) {
+    l = parseLogText(SEED_LOG_TEXT);
+    localStorage.setItem('wp-log', JSON.stringify(l));
+    localStorage.setItem('wp-log-seed-ver', SEED_LOG_VER);
+  }
   if (!f.length && !u.length && !l.length) {
     f = SEED_FILES;
     u = SEED_URLS;
@@ -3593,7 +3600,7 @@ Wed 11: f&f 3240
 Tue 10: ba 4354
 Mon 9: dumbbell 4501
 Sun 8: 40 JK MJ
-Sat 7: activate 2926
+Sat 7: activate 2637
 Fri 6: csc 3931
 Thu 5: dumbbell 4309
 Wed 4: f&f 2442
@@ -3601,21 +3608,21 @@ Tue 3: ba 4354
 Mon 2: dumbbell 4534
 Sun 1: 30 JK MJ
 Nov
-Sat 30: activate 2926
+Sat 30: activate 2912
 Fri 29: csc 3853
 Thu 28: dumbbell 4227
 Wed 27: f&f 2513
 Tue 26: ba sporting form 5037
 Mon 25: dumbbell 4625
 Sun 24: 30 JK MJ
-Sat 23: activate 2926
+Sat 23: activate 2936
 Fri 22: csc 3834 x
 Thu 21: dumbbell 4220
 Wed 20: f&f 2513
 Tue 19: ba sporting form 5037
 Mon 18: dumbbell 4637
 Sun 17: JK 10 Summer Cardio, JK 20 Throwback
-Sat 16: activate 2717
+Sat 16: activate 2700
 Fri 15: csc 3824
 Thu 14: dumbbell 4209
 Wed 13: f&f 2513
@@ -3629,24 +3636,25 @@ Wed 6: 30 BP turbo30
 Tue 5: ba sporting form 4320
 Mon 4: dumbbell 4734
 Sun 3: 20 JK Chappell Roan
-Sat 2: activate 4552 k step
+Sat 2: activate 4552 step
 Fri 1: csc 4519
 Oct
-Thu 31: dumbbell 4048 christmas
+Thu 31: dumbbell 4048
 Wed 30: 30 BP turbo20 | www.youtube.com/watch?v=Ba3qZjzPonI
 Tue 29: ba sporting form 4320
 Mon 28: dumbbell 4745
 Sun 27: 20 JK Chappell Roan
-Sat 26: f&f 2513
-Thu 24: ba sporting form 2812
+Sat 26: f&f 2513 m.youtube.com/watch?v=bQfXFfgb-3g
+Fri 25: f&f 24
+Thu: ba sporting form 2812
 Wed 23: 30 BP upper lower cardio
 Tue 22: ba sporting form 4320
 Mon 21: dumbbell 3935
 Sun 20: 20 JK Pitbull
 Sat 19: dumbbell 3123
 Fri 18: csc 4428
-Thu 17: ba sporting form 2707 standing
-Wed 16: 25 BP max tabata
+Thu 17: ba sporting form 2707
+Wed 16: 25 BP max tabata - can use weights
 Tue 15: ba sporting form 4320
 Mon 14: dumbbell 3903
 Sun 13: 15 JK breakup
@@ -3654,211 +3662,251 @@ Sat 12: hiit 3534
 Fri 11: csc 3931
 Thu 10: strength 3424
 Wed 9: 30 BP terrible 2s
-Tue 8: ba golds gym 4531
+Tue 8: ba 45m golds gym
 Mon 7: dumbbell 4800
+Sun 6: GC 30 Full Body Fat Burn
+Sat 5: dumbbell 3016
 Fri 4: csc 3834 x
 Thu 3: hiit 3345 ryan
 Wed 2: 25 BP max tabata
 Tue 1: ba 4453
 Sep
 Mon 30: dumbbell 4806
+Sun 29: grooveclub 15x2
 Sat 28: dumbbell 3829
 Fri 27: csc 3853
 Thu 26: hiit 3232
 Wed 25: f&f 2442
+Tue 24: csc 45
+Thu 23: hiit 3228
 Fri 22: csc 3824
 Sat 21: dumbbell 3545
+Sun 20: 20 JK Non-Stop Cardio
 Mon 19: dumbbell 3621
 Wed 18: f&f 3240
-Tue 17: ba sporting form 4537
+Tue 17: ba 45 sporting form
 Mon 16: dumbbell 4817
-Sat 14: dumbbell 3544
+Sun 15: 20 JK HIIT
+Sat 14: dumbbell 3544  skips at 23m
 Fri 13: csc 3331
-Thu 12: hiit 3023 k
+Thu 12: hiit 3119
+Wed 11: 25 BP triple pump
 Tue 10: ba 4354
-Mon 9: dumbbell 3123
+Mon 9: dumbbell 3123  good, not too hard
+Sun 8: 20 JK Non-Stop Cardio
 Sat 7: dumbbell 3016
 Fri 6: f&f 3240
+Thu 5: 20 BP H20 5
 Wed 4: f&f 2442
-Mon 2: z bp h20 1 2214
+Tue 3: 20 BP H20 2
+Mon 2: 20 BP H20 1
 Sun 1: 20 JK Non-Stop Cardio
 Aug
 Sat 31: f&f 3240
-Fri 30: z bp h20 5 2335
+Fri 30: 20 BP H20 5
 Thu 29: f&f 2442
-Wed 28: z bp h20 2 2156
-Tue 27: z bp h20 1 2214
+Wed 28: 20 BP H20 2
+Tue 27: 20 BP H20 1
 Mon 26: 20 JK walkdance 1
 Sat 10: dumbbell 3441
 Fri 9: csc 3331
-Thu 8: hiit 3023 k
+Thu 8: hiit 3119
 Wed 7: 25 BP triple pump
-Tue 6: ba golds gym 4531
+Tue 6: ba 45 golds gym
 Mon 5: dumbbell 4836
+Sun 4: 20 JK 80s | www.youtube.com/watch?v=GSAfvy7dLbk&t=511s
 Sat 3: csc 4519
 Fri 2: f&f 2442
 Thu 1: dumbbell 3123
 Jul
 Wed 31: 30 BP upper lower cardio
-Tue 30: ba sporting form 4537
-Mon 29: hiit 2634 sophie - no weights
+Tue 30: ba 45 sporting form
+Mon 29: hiit 2634 sophie
 Sun 28: 20 JK joyful
 Sat 27: dumbbell 3016
 Fri 26: csc 4428
 Thu 25: dumbbell 4950
 Wed 24: 30 BP terrible 2s
-Tue 23: ba sporting form 4537
+Tue 23: ba 45 sporting form
 Mon 22: hiit 2618 kate
 Sun 21: 20 JK fun
 Sat 20: 30 nuffield low impact strength
 Fri 19: csc 3931
-Thu 18: dumbbell 3621
+Thu 18: dumbbell 3622
 Wed 17: 25 BP max tabata
 Tue 16: 35 JK HIIT dance
 Mon 15: hiit 4304
+Sun 14: walkdance 2
 Sat 13: 30 nuffield low impact strength
 Fri 12: csc 3853
 Thu 11: dumbbell 3016
 Wed 10: 30 BP terrible 2s
 Tue 9: 30 nuffield attack
 Mon 8: hiit 3232
-Fri 5: f&f 3240
+Sun 7: 30-Minute Hip-Hop Fit Workout
+Sat 6: BP 30 Challenging Total Body Cardio and Resistance
+Fri 5: f&f 3241
 Thu 4: 30 BP turbo30
 Wed 3: 30 BP turbo20
 Tue 2: BP upper lower cardio
-Mon 1: f&f 2442
+Mon 1 : f&f 2442
 Jun
 Sun 30: csc 3331
-Sat 29: f&f 3240
+Sat 29: f&f 3241
 Fri 28: f&f 2442
 Thu 27: 30 BP low impact cardio
-Wed 26: JK walkdance 1
+Wed 26: walkdance 1
 Thu 13: dumbbell 4800
-Tue 11: ba sporting form 5037
-Mon 10: hiit 4304
+Wed 12: 30 eleni fit youtu.be/qpKXzVTfN4E?si=3_jltYWezUKoS_qW
+Tue 11: Tue 55 BA Amanda Ellis
+Mon 10: hiit 4007
+Sun 9: 30-Minute All-Levels Cardio Dance Workout
+Sat 8: 30 nuffield low impact strength
 Fri 7: csc 3824
 Thu 6: dumbbell 3441
 Wed 5: 30 BP turbo30
-Tue 4: ba sporting form 4537
+Tue 4: 45 attack sporting form
 Mon 3: hiit 4304
-Sat 1: strength 2635
+Sun 2: Zumba 30-Minute Beginners Latin Dance Mini-Workout
+Sat 1: strength 2636
 May
 Fri 31: csc 3331
 Thu 30: dumbbell 3545
-Tue 28: ba sporting form 4537
-Mon 27: csc 3931
+Wed 29: hilo
+Tue 28: 45 sporting form
+Mon 27: csc 3841  no weights
+Sun 26: 15 JK breakup
 Sat 25: pump 2947
 Fri 24: csc 4519
-Thu 23: dumbbell 4309
+Thu 23: dumbbell 4310
 Wed 22: 30 BP turbo20
 Tue 21: Ambers BodyAttack 84
-Mon 20: hiit 3826 weights r&k
+Mon 20: hiit 3826 - weights R&K, repetitive, low music so can play own
+Sun 19: 30 nuffield dance
 Sat 18: 30 nuffield low impact strength
-Fri 17: csc 4428
-Thu 16: dumbbell 4950
+Fri 17: csc a 4428
+Thu 16: dumbbell 5054
 Wed 15: 30 BP terrible 2s
 Tue 14: 35 JK HIIT dance
-Mon 13: hiit 3343 r&s
+Mon 13: hiit 3344 | www.facebook.com/GESAConline/videos/749499932475713/
 Sun 12: 25 BP triple pump
 Sat 11: f&f 2442
 Fri 10: csc 3931
-Thu 9: dumbbell 4309
-Wed 8: f&f 3240
-Tue 7: hiit 3656 r
+Thu 9: dumbbell 4308
+Wed 8: f&f 3241l
+Tue 7: hiit 3657
 Mon 6: 20 BP low impact
-Sun 5: z bp h20 5 2335
+Sun 5: 20 BP H20 5
 Sat 4: 30 BP upper lower cardio
-Fri 3: z bp h20 2 2156
-Thu 2: dumbbell 4326
-Wed 1: z bp h20 1 2214
+Fri 3: 20 BP H20 2
+Thu 2: dumbbell 4327
+Wed 1: 20 BP H20 1
 Apr
-Tue 30: Ambers BodyAttack 84
+Tue 30: BA 84
 Mon 29: csc 3853
-Sat 27: pump 2947
-Fri 26: csc 4428
-Thu 25: dumbbell 4247
+Sun 28: 25 dance party
+Sat 27: pump soph 3319
+Fri 26: csc a 4428
+Thu 25: dumbbell 4248
 Wed 24: f&f 2442
-Tue 23: ba golds gym 4531
+Tue 23: ba 45m golds gym
 Mon 22: csc 3824
+Sun 21: 20 non-stop cardio
 Sat 20: pump 2947
 Fri 19: csc 4519
-Thu 18: dumbbell 2956
+Thu 18: dumbbell 2958
+Wed 17: nuffield low impact cardio hiit
+Tue 16: nuffield attack
 Mon 15: hiit 3232
+Sun 14: 15 JK breakup
+Sat 13: 45 min cardio | www.youtube.com/watch?v=NG9EyDbQEZQ&list=PLu7abih1pToLUv3AT8PGx-ipSAhY4RA0P&index=4
 Fri 12: csc 3331
-Thu 11: f&f 3240
-Sun 7: JK walkdance 2
+Thu 11: f&f 3241
+Sun 7: walkdance 2
 Sat 6: 25 BP max tabata
-Fri 5: hiit 3228 r
+Fri 5: hiit 3229
 Thu 4: 30 BP upper lower cardio
-Wed 3: f&f 2442
+Wed 3: f&f 2443
 Tue 2: 30 BP turbo20
 Mon 1: dumbbell 3016
 Mar
 Sun 31: 30 BP terrible 2s
 Sat 30: 30 BP turbo30
 Fri 29: csc 3853
-Thu 28: dumbbell 4326
+Thu 28: dumbbell 4327
 Wed 27: 25 BP triple pump
 Tue 26: nuffield attack
 Mon 25: csc r 4649
-Sat 23: strength 2538 k
+Sun 24: 20 JK HIIT - need warm up first
+Sat 23: strength 2523  good music, but undoable 3rd set
 Fri 22: csc 3824
-Thu 21: dumbbell 4247
+Thu 21: dumbbell 4248  but low music
 Wed 20: 30 BP upper lower cardio
+Tue: 19 25 BP cardio
 Mon 18: 25 BP triple pump
 Sun 17: 20 BP low impact
-Sat 16: z bp h20 1 2214
+Sat 16: 20 BP H20 1
 Fri 15: csc 3331
 Thu 14: dumbbell 4631
 Wed 13: 30 BP upper lower cardio
-Tue 12: ba sporting form 4537
-Mon 11: csc r 4919
+Tue 12: 45 attack sporting form
+Mon 11: csc r 4920
 Sun 10: 20 JK Non-Stop Cardio
 Sat 9: strength 3424
-Fri 8: csc 3834 x
-Thu 7: dumbbell 2956
-Mon 4: csc r 4834
-Sun 3: JK walkdance 1
-Sat 2: strength 2635
+Fri 8: csc 3834
+Thu 7: dumbbell 2957
+Wed 6: 35 BP cardio momentum
+Tue 5: 51 Body Attack Gold's Gym Khalda
+Mon 4: csc 4834
+Sun 3: walkdance 1
+Sat 2: strength 3022
 Fri 1: csc 4519
 Feb
 Thu 29: dumbbell 3123
 Wed 28: 30 BP terrible 2s
-Mon 26: csc r 4121
-Sun 25: z bp h20 5 2335
-Sat 24: z bp h20 2 2156
-Fri 23: z bp h20 1 2214
-Thu 22: dumbbell 4418
-Mon 19: csc r 4421
-Sat 17: strength 2538 k
+Tue 27: 45 Gold's Gym
+Mon 26: csc 4121
+Sun 25: 20 BP H20 5
+Sat 24: 20 BP H20 2
+Fri 23: 20 BP H20 1
+Thu 22: dumbbell 4419 4
+Wed 21: 35 bp blaze | www.youtube.com/watch?v=aW5IYarq0fo&t=11s
+Tue 20: Ambers body attack
+Mon 19: csc r 4422
+Sun 18: walkdance 2
+Sat 17: strength 2853
 Fri 16: csc 4428
-Thu 15: dumbbell 4214
+Thu 15: dumbbell 4215 3
 Wed 14: 25 BP max tabata
-Mon 12: csc r 4245
-Thu 8: dumbbell 3903
+Tue 13: Amanda Ellis Body Attack
+Mon 12: csc 4245
+Thu 8: dumbbell 3905 2
 Wed 7: 25 BP triple pump
-Mon 5: csc r 4523
-Sun 4: JK walkdance dua lipa
-Sat 3: csc 3931
-Fri 2: pilates 1453 basic claire
-Thu 1: dumbbell 3016
+Tue 6: ba frank
+Mon 5: csc 4702
+Sun 4: walkdance 5
+Sat 3: csc f 3931
+Fri 2: pilates 2600
+Thu 1: dumbbell rhett 2830
 Jan
-Wed 31: JK walkdance 4
-Mon 29: csc r 4649
-Sat 27: nuffield 30 attack
+Wed 31: walkdance 4
+Tue 30: Body Attack 82 Diego Salazar
+Mon 29: csc 4650
+Sun 28: nuffield yoga
+Sat 27: nuffield mini attack
 Fri 26: csc 4428
-Thu 25: JK walkdance 3
-Wed 24: dumbbell 3621
+Thu 25: walkdance 3
+Wed 24: dumbbell 3622
 Tue 23: 30 BP upper lower cardio
 Mon 22: csc 3853
 Sun 21: nuffield yoga
 Sat 20: 20 JK Non-Stop Cardio
 Fri 19: 20 JK walkdance 2
-Thu 18: nuffield 30 attack
-Wed 17: dumbbell 4048 christmas
+Thu 18: nuffield mini attack
+Wed 17: dumbbell 4048
 Tue 16: 30 BP turbo20
-Mon 15: 20 BP low impact
-Sun 14: 20 JK walkdance 1
+Mon 15: 20 BP low impact & nuffield mobility stretch
+Sun 14:  20 JK walkdance 1
 Sat 13: csc 4519
 Fri 12: 25 BP triple pump
 Thu 11: 20 JK HIIT
@@ -3868,7 +3916,7 @@ Mon 8: csc 3824
 Sun 7: 20 JK Non-Stop Cardio
 Sat 6: csc 4428
 Fri 5: 30 BP high intensity, low impact
-Thu 3: z bp h20 1 2214
+Wed 3: h20 1
 Tue 2: dumbbell 4631
 Mon 1: 20 JK walkdance 1
 2023 ------------------------------------------------------------
@@ -3877,7 +3925,7 @@ Sun 31: csc 4519
 Sat 30: mf 20
 Fri 29: 20 JK walkdance 5
 Thu 28: 25 JK cardio
-Wed 27: dumbbell 3123
+Wed 27: dumbell 3130
 Mon 25: 20 BP low impact
 Sun 24: 20 JK walkdance 1
 Sat 23: csc 4428
@@ -3886,203 +3934,278 @@ Thu 21: 25 JK cardio
 Wed 20: dumbbell 4121 france
 Tue 19: 20 JK walkdance 3
 Mon 18: csc 3331
-Sat 16: JK walkdance 2
+Sun 17: hilo 3043
+Sat 16: walkdance 2
 Fri 15: 30 BP high intensity, low impact
 Thu 14: dumbbell 4410
-Wed 13: z bp h20 2 2156
-Tue 12: csc 3834 x
-Mon 11: z bp h20 1 2214
+Wed 13: 20 BP H20 2
+Tue 12: csc x 3834
+Mon 11: 20 BP H20 1
 Sun 10: 20 JK walkdance 1
 Sat 9: csc 4519
-Thu 7: dumbbell 3016
+Fri 8: cdorner 45
+Thu 7: dumbbell rach 4419
+Wed 6: 20 BP low impact
 Tue 5: 20 JK walkdance 4
 Mon 4: csc 3931
 Sun 3: 20 JK walkdance 4
 Sat 2: csc 4428
-Fri 1: z bp h20 5 2335
+Fri 1: 20 BP H20 5 / shuffle
 Nov
 Thu 30: dumbbell 4209
-Wed 29: z bp h20 2 2156
+Wed 29: 20 BP H20 2
 Tue 28: csc 3853
-Mon 27: z bp h20 1 2214
+Mon 27: 20 BP H20 1
+Sun 26: shuffle
 Sat 25: csc 4519
-Fri 24: z bp h20 5 2335
-Thu 23: dumbbell 2956
-Wed 22: z bp h20 2 2156
+Fri 24: 20 BP H20 5
+Thu 23: dumbbell
+Wed 22: 20 BP H20 2
 Tue 21: 20 JK walkdance 2
-Mon 20: z bp h20 1 2214
+Mon 20: 20 BP H20 1
 Sun 19: 35 JK HIIT dance
 Sat 18: csc 3824
-Fri 17: z bp h20 5 2335
+Fri 17: 20 BP H20 5
 Thu 16: 20 JK walkdance 3
-Wed 15: z bp h20 2 2156
-Tue 14: dumbbell 4048 christmas | www.facebook.com/GESAConline/videos/393215471984120
+Wed 15: 20 BP H20 2
+Tue 14: dumbbell rach 4048 (christmas) | www.facebook.com/GESAConline/videos/393215471984120
 Mon 13: 20 JK walkdance 2
-Sun 12: z bp h20 1 2214
+Sun 12: 20 BP H20 1
 Sat 11: csc 3331
 Fri 10: 30 BP high intensity, low impact
-Thu 9: dumbbell 4002
+Thu 9: dumbbell rach 4002
 Tue 7: 20 JK walkdance 1
-Sun 5: tpr 4345 - upper body
+Sun 5: tpr 4821
 Sat 4: csc 4519
 Fri 3: 30 BP high intensity, low impact
 Thu 2: 20 JK walkdance 2
-Mon 1: dumbbell 2956
+Mon 1: dumbbell rach 2957
 Oct
 Tue 31: 20 JK walkdance 1
-Mon 30: csc r 4247
+Mon 30: csc rach 4247
 Sat 28: 25 BP triple pump
 Fri 27: 30 BP low impact cardio
 Thu 26: 40 Full Body HIIT
-Wed 25: dumbbell 3621
+Wed 25: dumbbell rach 3622
 Tue 24: 35 JK HIIT dance
-Mon 23: csc r 4919
+Mon 23: csc rach 4920
 Sun 22: tpr 4345 - upper body
-Sat 21: ba sporting form 4837
+Sat 21: ba frank
 Fri 20: csc 3931
-Thu 19: 30 BP high intensity, low impact
-Wed 18: dumbbell 3123
-Tue 17: 35 JK HIIT dance
+Thu 19: 30 BP high intensity, low impact - good, weights optional
+Wed 18: dumbbell rach 3123 - sound no good, no stretches
+Tue 17: 35 JK min HIIT dance
 Mon 16: 30 BP Low impact cardio
 Sat 14: csc 3853
 Fri 13: 45 JK Boy Toy Dance
 Thu 12: 20 BP low impact
-Wed 11: dumbbell 3903
+Wed 11: dumbbell rach 3904
 Tue 10: 20 JK Non-Stop Cardio
-Mon 9: dumbbell 3545
+Mon 9: dumbbell rach 3556
 Sun 8: 15 JK
 Sat 7: 25 britney
-Fri 6: csc 4428
+Fri 6: csc a 4428
 Thu 5: cdorner 30 min
+Wed 4: pump Sophie
 Tue 3: 25 JK Cardio
 Sun 1: 25 BP triple pump
 Sep
 Sat 30: 20 BP low impact
-Fri 29: pump 2947
+Fri 29: pump wendy 2947
 Wed 27: 20 JK HIIT
 Tue 26: csc 3824
 Mon 25: 20 BP low impact
 Sun 24: 20 JK Non-Stop Cardio
 Fri 23: 25 BP triple pump
 Thu 22: 20 BP low impact
-Wed 21: z bp h20 5 2335
-Mon 19: z bp h20 2 2156
-Sun 18: z bp h20 1 2214
-Sat 17: csc 4519
-Fri 16: pump 2947
-Thu 14: 35 JK HIIT dance
-Wed 13: dumbbell 3016
+Wed 21: 20 BP H20 5
+Mon 19: 20 BP H20 2
+Sun 18: 20 BP H20 1
+Sat 17: csc a 4519
+Fri 16: pump pete 2802
+Thu 14: 35 JK min HIIT dance
+Wed 13: dumbbell rach 3016
 Tue 12: 20 JK Non-Stop Cardio
-Wed 6: pump 2947
+Wed 6: pump pete 2909
 Tue 5: 25 JK Cardio
-Mon 4: dumbbell 3016
+Mon 4: dumbbell rach 3016
 Aug
-Wed 30: csc 4519
+Thu 31: strength
+Wed 30: csc a 4519
 Tue 29: 20 JK Non-Stop Cardio
-Mon 28: dumbbell 4220
-Wed 23: pump 2947
+Mon 28: dumbbell rach 4221
+Thu 24: cdorner 30 tabata
+Wed 23: pump wendy 2947
 Tue 22: 20 JK Non-Stop Cardio
-Mon 21: dumbbell 4209
-Fri 18: csc 4428
+Mon 21: dumbbell rach 4209
+Fri 18: csc a 4428
+Thu 17: cdorner 30
 Wed 16: csc 3331
-Mon 14: dumbbell 3903
+Tues 15 20 JK HIIT
+Mon 14: ge dumbbell rach 3904
+Thu 10: cdorner 45
 Wed 9: csc 3931
 Tue 8: 25 JK Cardio
-Mon 7: dumbbell 3621
+Mon 7: gesac dumbbell rach 3622
 Fri 4: csc 3853
+Thu 3: gesac dumbbell rhett 2830
 Tue 1: 20 JK Non-Stop Cardio
 Jul
 Mon 31: 30 BP turbo20
-Fri 28: Ambers BodyAttack 84
+Fri 28: Body Attack 82 Diego Salazar
+Thu 27: zumba
+Wed 26: hiit soph 35 53 | www.facebook.com/GESAConline/videos/673733269878976
 Tue 25: 20 JK Non-Stop Cardio
-Mon 24: z bp h20 5 2335
+Mon 24: 20 BP H20 5
 Sat 22: 25 JK Cardio
-Fri 21: z bp h20 2 2156
+Fri 21: 20 BP H20 2
 Thu 20: csc 3824
-Tue 18: 20 JK 80s Step
-Mon 17: JK walkdance 1050 | www.youtube.com/watch?v=Bf1NhYULlIc
-Sat 15: z bp h20 1 2214
-Fri 14: tpr 4627
+Wed 19: 3x 10 min popsugar dance
+Tue 18: 20 JK 80s
+Mon 17: JK walkdance | www.youtube.com/watch?v=Bf1NhYULlIc
+Sat 15: 20 BP H20 1
+Fri 14: tpr fb 4723
+Thu 13: 15 MF 1 & 15 MF 2
+Wed 12: 30 min | www.youtube.com/watch?v=WtT3aH74Pwk
 Tue 11: 20 JK Non-Stop Cardio
+Mon 10: 15 JK  | www.youtube.com/watch?v=9nB0Fq0C_3M
 Jun
 Fri 23: csc 3331
-Wed 21: dumbbell 3016
+Thu 22: bp5
+Wed 21: gesac dumbbell 30
 Tue 20: 20 JK HIIT
 Mon 19: 20 BP low impact
 Fri 16: tai chi 3059
-Thu 15: z bp h20 2 2156
-Wed 14: z bp h20 1 2214
-Tue 13: 20 JK dance
-Fri 9: csc 3834 x
+Thu 15: 20 BP H20 2
+Wed 14: 20 BP H20 1
+Tue 13: 20 JK min dance
+Mon 12: 30 min | www.youtube.com/watch?v=tmEeghaHoz0
+Fri 9: csc x 3834
+Thu 8: 20 J&T HIIT
+Wed 7: 20 BP H20 5
+Tue 6: 20 JK HIIT
 Sat 3: 30 BP turbo20
+Thu 1: 20 J&T HIIT
 May
+Tue 30: 20 BP low impact
 Thu 25: body attack 92
-Wed 24: z bp h20 1 2214
-Tue 23: 25 JK Cardio
-Sun 21: tpr 4345 - upper body
-Sat 20: 25 JK Cardio
+Wed 24: 20 BP H20 1
+Tue 23: 25 JK Minute Cardio Dance PARTY
+Sun 21: tpr 4140
+Sat 20: 25 JK Minute Cardio Dance PARTY
 Fri 19: csc 3931
-Thu 18: z bp h20 1 2214
-Wed 17: 30 JK HIIT dance
+Thu 18: 20 BP H20 1
+Wed 17: 30 JK min HIIT dance
 Tue 16: 20 JK dance
 Mon 15: 20 BP low impact
-Fri 12: z bp h20 5 2335
-Thu 11: z bp h20 2 2156
-Mon 8: z bp h20 1 2214
+Fri 12: 20 BP H20 5
+Thu 11: 20 BP H20 2
+Mon 8: 20 BP H20 1
 Apr
-Tue 18: z bp h20 2 2156
-Mon 17: z bp h20 1 2214
+Tue 18: 20 BP H20 2
+Mon 17: 20 BP H20 1
 Mar
 Tue 21: 30 BP turbo20
-Mon 20: 20 BP low impact
-Sat 18: 25 BP triple pump
-Fri 17: csc 4519
-Sat 11: 20 BP triple pump
-Fri 10: 30 JK HIIT dance
+Mon 20: 20 low impact BP
+Sat 18: 25 triple pump BP
+Fri 17: csc a 4519
+Sat 11: 20 triple pump BP
+Fri 10: 30 min HIIT dance JK
 Thu 9: csc 3853
 Thu 2: csc 3853
 Feb
 Sun 26: csc 3853
-Thu 23: 20 BP low impact
-Mon 6: 20 BP low impact
-Thu 2: 20 BP low impact
-Wed 1: 20 JK dance
+Thu 23: 20 low impact BP
+Mon 6: 20 low impact BP
+Thu 2: 20 low impact BP
+Wed 1: 20 dance JK
 Jan
 Wed 25: csc 3824
-Wed 4: 20 BP low impact
+Wed 4: 20m low impact - body project
 2022 ------------------------------------------------------------
 Dec
 Sat 24: body attack 92
-Thu 22: grit cardio 3002
-Wed 21: dumbbell 3016
-Sat 17: csc 4519
-Thu 15: 30 JK HIIT dance
-Mon 5: Fast & Furious (Daniela) | www.facebook.com/watch/?v=246740493091161
+Thu 22: gesac grit 3002
+Wed 21: gesac dumbbell 30
+Sat 17: csc a 4519
+Thu 15: 30 min HIIT dance
+Wed 14: 25 Minute HIIT Workout
+Wed 7: csc 3824
+Mon 5: Fast & Furious (Daniela) www.facebook.com/watch/?v=246740493091161
 Sun 4: body attack 101
-Fri 2: csc 4428
+Fri 2: csc a 4428
 Nov
-Wed 30: 30 BP high intensity, low impact
-Tue 29: 30 JK HIIT dance
+Wed 30: 30 min high intensity, low impact
+Tue 29: 30 min HIIT dance
 Mon 28: csc 3331
 Tue 22: csc 3931
 Mon 21: 30 mins pilates
-Fri 18: csc 4519
-Thu 17: 30 BP high intensity, low impact
-Tue 15: 30 JK HIIT dance
+Fri 18: csc a 4519
+Thu 17: 30 min high intensity, low impact
+Wed 16: 20m low impact
+Tue 15: 30 min HIIT dance
 Mon 14: csc 3853
-Fri 11: csc 4428
-Thu 10: 30 JK HIIT dance
-Tue 8: 30 JK HIIT dance
-Mon 7: 20 JK dance
+Fri 11: csc a 4428
+Thu 10: 30 min HIIT dance
+Wed 9: pilates | www.youtube.com/watch?v=6Vf0UWFzUa8&list=PL94c_wzIcetjbNe9eRSkcPEotfMkt6Yg3&index=4&t=1217s
+Tue 8: 30 min HIIT dance
+Mon 7: 20 min dance
 Tue 1: csc 3931
 Oct
+Mon 31: bb,swim
 Fri 28: csc 4428
 Wed 26: csc 3853
-Tue 25: 20 JK dance
-Mon: csc 3834 x
+Tue 25: 20 min dance
+Mon: csc x 3834
+Sun 23: 30m pilates
+Thu 20: 1hr walk
+Wed 19: csc 20210831
+Tue 18: 1hr walk
+Mon 17: csc 20200816
 Fri 14: bb
+Mon 10: Walk Dance 4 | www.youtube.com/watch?v=v8eILRkFIDk&t=4s
+Sun 9: bb
+Fri 7: bb
 Sep
+Sun 18: bb
+Thu 15: jog to gate 37, walk back
+Wed 14: Walk Dance 3 | www.youtube.com/watch?v=Th9q9AB0YQU&t=18s
+Tue 13: Walk Dance 2 | www.youtube.com/watch?v=2NNygydzBAU
+Mon 12: Walk Dance 1 | www.youtube.com/watch?v=1hupx0eMwEE&list=PL94c_wzIcetjbNe9eRSkcPEotfMkt6Yg3&index=6&t=608s
 Sun 11: csc 3824
+Sat 10: 30 mins | www.youtube.com/watch?v=3SpPraOLJl4
+Wed 7 | www.youtube.com/watch?v=7APgRMbzF2M
+Tue 6 | www.youtube.com/watch?v=DO6OwbjgzfM
+Mon 5 | www.youtube.com/watch?v=x3aogIZfVUI&t=6s
+Sat 3: csc 20210831
+Fri 2: csc 20200816
+Thu 1 | www.youtube.com/watch?v=yN3GgCUmmXw
+Aug
+Tue 30: walk
+Mon 29 | www.youtube.com/watch?v=x3aogIZfVUI
+Fri 19: bb
+Sun 14: csc 4428
+Wed 10: csc 3824
+Tue 9: 45m beach walk
+Fri 5: walk with Mahalia
+Wed 3: csc 20200817
+July
+Sun 31: csc 20200927
+Tue 26: 1.5 hr beach walk
+Sat 23: csc 20210831
+Thu 21: tr
+Wed 20: csc 20200817
+Tue 19: 30 min beach walk
+Mon 18: 30 min beach walk
+covid: 20 Jun - 10 Jul
+June
+Fri 17: csc 20200920
+Thu 9: walk
+Wed 8: walk
+Tue 7: bb
+Mon 6: csc 20200927
+May
+Sun 29: bb
 `;
 </script>
 </body>
