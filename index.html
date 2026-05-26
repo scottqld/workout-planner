@@ -454,7 +454,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.77'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.78'; // auto-bumped by pre-commit hook
 const SEED_LOG_VER = '1.74'; // bump to force-reset log from SEED_LOG_TEXT
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -515,7 +515,13 @@ function startApp() {
   checkPastWeekAutoLog();
   render();
   showTab('schedule');
-  syncPull(false);  // async — silently refreshes from cloud if configured
+  // After a log reset, push clean data to cloud instead of pulling old data back
+  if (localStorage.getItem('wp-log-reset-push') === '1') {
+    localStorage.removeItem('wp-log-reset-push');
+    syncPush(false);
+  } else {
+    syncPull(false);  // async — silently refreshes from cloud if configured
+  }
 }
 
 // ── PIN ────────────────────────────────────────────────────────────────────
@@ -704,11 +710,13 @@ function loadFromStorage() {
   }
   const raw = k => { try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch { return []; } };
   let f = raw('wp-files'), u = raw('wp-urls'), l = raw('wp-log');
-  // Full reset of log when seed version changes (clears all corrupted data)
+  // Full reset of log when seed version changes (clears all corrupted data).
+  // Sets a flag so startApp pushes clean data to cloud instead of pulling.
   if (localStorage.getItem('wp-log-seed-ver') !== SEED_LOG_VER) {
     l = parseLogText(SEED_LOG_TEXT);
     localStorage.setItem('wp-log', JSON.stringify(l));
     localStorage.setItem('wp-log-seed-ver', SEED_LOG_VER);
+    localStorage.setItem('wp-log-reset-push', '1');
   }
   if (!f.length && !u.length && !l.length) {
     f = SEED_FILES;
