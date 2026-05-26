@@ -514,7 +514,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.105'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.106'; // auto-bumped by pre-commit hook
 const SEED_LOG_VER = '1.78'; // bump to force-reset log from SEED_LOG_TEXT
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -2620,18 +2620,17 @@ function tiDeleteDateEntry(dateStr, day, idx) {
   renderSchedule();
 }
 
-// Auto-generate a week's classes from the full library.
-// Priority: least-used classes first, with random jitter so the same
-// never-done pool produces a different order each time the button is pressed.
-// Score = count×10000 − daysSinceLastDone + rand(500)
-// → never-done classes always beat done ones; rarely-done old classes beat
-//   frequently-done recent ones; jitter randomises within each priority band.
+// Generate both timetable weeks as category-only placeholders.
+// Source priority: (1) previous week's log for each weekday,
+// (2) categories of existing class names already on that day.
+// Any day with existing class names is ALWAYS overwritten — clearing
+// specific classes back to category placeholders.
 function autoGenWeek() {
   const isoDate  = dt => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
   const todayMid = new Date(); todayMid.setHours(0,0,0,0);
   const classMap = buildClassMap();
 
-  // Build class-name → category lookup
+  // Build class-name → category lookup (lowercase key)
   const nameToCat = new Map();
   for (const [k, c] of classMap) { if (c.category) nameToCat.set(k, c.category); }
 
@@ -2641,27 +2640,25 @@ function autoGenWeek() {
     if (e.date && e['class']) (logByDate[e.date] = logByDate[e.date] || []).push(e['class']);
   }
 
-  // Generate both displayed weeks (offset 0 = this week, offset 1 = next week)
-  let assigned = 0;
+  // Process both displayed weeks
   for (const wkOffset of [0, 1]) {
     const { map: dm }   = weekDates(wkOffset);
-    const { map: prev } = weekDates(wkOffset - 1);   // previous week as reference
+    const { map: prev } = weekDates(wkOffset - 1);
 
     for (const day of DAYS) {
       const dt = dm[day];
-      if (dt < todayMid) continue;                    // skip past days
-      const newDate  = isoDate(dt);
-      const prevDate = isoDate(prev[day]);
-      const prevClasses = logByDate[prevDate] || [];
+      if (dt < todayMid) continue;                      // never rewrite past days
+      const newDate    = isoDate(dt);
+      const prevDate   = isoDate(prev[day]);
 
-      // Collect categories from the reference week's log for this weekday
+      // 1. Categories from the equivalent day in the previous week's log
       const cats = [];
-      for (const name of prevClasses) {
+      for (const name of (logByDate[prevDate] || [])) {
         const cat = nameToCat.get(name.toLowerCase().trim());
         if (cat && !cats.includes(cat)) cats.push(cat);
       }
 
-      // Fallback: look at existing schedule/override for this day
+      // 2. Fallback: extract categories from whatever is already on this day
       if (!cats.length) {
         const existing = dateOverrides.hasOwnProperty(newDate)
           ? dateOverrides[newDate]
@@ -2676,17 +2673,14 @@ function autoGenWeek() {
         }
       }
 
-      if (cats.length) {
-        dateOverrides[newDate] = cats.map(c => `@cat:${c}`);
-        assigned++;
-      }
+      // Always overwrite: write @cat: placeholders, or clear to rest if no cats found
+      dateOverrides[newDate] = cats.map(c => `@cat:${c}`);
     }
   }
 
-  if (!assigned) { showErr('No previous week data to generate from'); return; }
   persistOverrides();
   renderSchedule();
-  showOk('Both weeks generated — tap a category to pick a class');
+  showOk('Both weeks set to categories — tap a pill to pick a class');
 }
 
 // ── Category slot picker ──────────────────────────────────────────────────
