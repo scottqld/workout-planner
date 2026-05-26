@@ -260,7 +260,8 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
     <div id="tab-log" style="display:none">
       <div class="toolbar">
         <input id="log-search" class="search" type="text" placeholder="Search log…" oninput="renderLog()">
-        <button class="btn btn-primary" onclick="openLogAdd()">+ Log</button>
+        <button class="btn btn-ghost" onclick="openLogDayAdd()">+ Log day</button>
+        <button class="btn btn-primary" onclick="openLogAdd()">+ Log entry</button>
       </div>
       <div id="log-out"><div class="placeholder">Loading…</div></div>
     </div>
@@ -442,6 +443,22 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
   </div>
 </div>
 
+<!-- ── Log day modal ── -->
+<div class="overlay" id="ov-log-day">
+  <div class="modal">
+    <h3>Log a day</h3>
+    <div class="field">
+      <label>Date</label>
+      <input id="lday-date" type="date" oninput="updateLogDayPreview()">
+    </div>
+    <div id="lday-preview" style="font-size:13px;color:#666;margin-top:4px;min-height:20px;padding:6px 0"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeOverlay('ov-log-day')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitLogDay()">Log</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Day edit modal ── -->
 <div class="overlay" id="ov-day-edit">
   <div class="modal">
@@ -471,7 +488,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.100'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.101'; // auto-bumped by pre-commit hook
 const SEED_LOG_VER = '1.78'; // bump to force-reset log from SEED_LOG_TEXT
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -2361,9 +2378,7 @@ function renderSchedule() {
         chips = `<span class="sched-rest">rest</span>`;
       }
       const todayDot  = today ? ' <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#2e6b30;vertical-align:middle;margin-left:3px"></span>' : '';
-      const doneTick  = (isPast || today) && items.length && !isDone
-        ? `<button class="day-tick-btn" onclick="logDay('${dateStr}','${dayKey}')" title="Mark as done">✓ done</button>`
-        : '';
+      const doneTick  = '';
       const nameStyle = isPast && !today ? ' past' : '';
       return `<div class="sched-row${today ? ' row-today' : ''}${isDone ? ' row-done' : ''}">
         <div class="sched-row-day">
@@ -2950,6 +2965,44 @@ function openLogAdd() {
   document.getElementById('ml-class').focus();
 }
 
+function openLogDayAdd() {
+  // Default to yesterday so it's most likely to be a day needing backfill
+  const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+  document.getElementById('lday-date').value = yesterday.toISOString().slice(0, 10);
+  updateLogDayPreview();
+  openOverlay('ov-log-day');
+}
+
+function updateLogDayPreview() {
+  const dateStr = document.getElementById('lday-date').value;
+  const el = document.getElementById('lday-preview');
+  if (!dateStr) { el.textContent = ''; return; }
+  const dt = new Date(dateStr + 'T00:00:00');
+  const DOW_KEY = ['sun','mon','tue','wed','thu','fri','sat'];
+  const dayKey  = DOW_KEY[dt.getDay()];
+  const items   = dateOverrides.hasOwnProperty(dateStr) ? dateOverrides[dateStr] : (schedule[dayKey] || []);
+  const existing = new Set(logData.filter(e => e.date === dateStr).map(e => (e['class']||'').toLowerCase().trim()));
+  const toLog    = items.filter(n => !existing.has((n||'').toLowerCase().trim()));
+  if (!items.length) {
+    el.textContent = 'No classes scheduled for this day.';
+  } else if (!toLog.length) {
+    el.innerHTML = '<span style="color:#4a8a4a">✓ All classes already logged for this day.</span>';
+  } else {
+    el.innerHTML = `Will log: <strong>${toLog.map(n => esc(n)).join(', ')}</strong>`;
+  }
+}
+
+function submitLogDay() {
+  const dateStr = document.getElementById('lday-date').value;
+  if (!dateStr) { showErr('Please select a date'); return; }
+  const dt      = new Date(dateStr + 'T00:00:00');
+  const DOW_KEY = ['sun','mon','tue','wed','thu','fri','sat'];
+  const dayKey  = DOW_KEY[dt.getDay()];
+  closeOverlay('ov-log-day');
+  logDay(dateStr, dayKey);
+  renderLog();
+}
+
 function openLogEdit(idx) {
   const e = logData.find(e => e._idx === idx);
   if (!e) return;
@@ -3014,7 +3067,7 @@ function setAllCats(open) {
 function openOverlay(id)  { document.getElementById(id).classList.add('open'); }
 function closeOverlay(id) { document.getElementById(id).classList.remove('open'); }
 document.addEventListener('click', e => {
-  ['ov-class','ov-import','ov-backup','ov-log','ov-day-edit','ov-sync'].forEach(id => {
+  ['ov-class','ov-import','ov-backup','ov-log','ov-log-day','ov-day-edit','ov-sync'].forEach(id => {
     if (e.target === document.getElementById(id)) closeOverlay(id);
   });
 });
