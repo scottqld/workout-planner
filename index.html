@@ -453,7 +453,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.53'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.54'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -2372,6 +2372,13 @@ function renderLog() {
     return;
   }
 
+  // Build total count per class name
+  const classCounts = {};
+  for (const e of logData) {
+    const k = (e['class'] || '').trim().toLowerCase();
+    if (k) classCounts[k] = (classCounts[k] || 0) + 1;
+  }
+
   let html = '', lastMonth = '';
   for (const e of sorted) {
     const month = e.date ? e.date.slice(0, 7) : '????-??';
@@ -2382,9 +2389,12 @@ function renderLog() {
       html += `<div class="cat-card"><div class="log-month">${label}</div><div>`;
       lastMonth = month;
     }
+    const cnt  = classCounts[(e['class'] || '').trim().toLowerCase()] || 0;
+    const pill = cnt ? `<span class="count-pill">${cnt}×</span>` : '';
     html += `<div class="log-row">
       <span class="log-date">${fmtDate(e.date)}</span>
       <span class="log-class">${esc(e['class'])}</span>
+      ${pill}
       <span class="log-notes">${esc(e.notes || '')}</span>
       <span class="row-actions">
         <button class="btn-sm" onclick="openLogEdit(${e._idx})">Edit</button>
