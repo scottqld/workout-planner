@@ -453,7 +453,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.47'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.48'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -503,6 +503,8 @@ function startApp() {
   loadSyncConfig();
   loadFromStorage();
   removeRetroScheduleEntries();
+  commitScheduleToLog();
+  checkPastWeekAutoLog();
   render();
   showTab('schedule');
   syncPull(false);  // async — silently refreshes from cloud if configured
@@ -907,7 +909,9 @@ function commitScheduleToLog() {
     const dt = dm[day];
     if (dt >= today) continue;
     const dateStr = isoD(dt);
-    for (const name of (schedule[day] || [])) {
+    // Use dateOverrides for this date if set, otherwise fall back to repeating schedule
+    const items = dateOverrides.hasOwnProperty(dateStr) ? dateOverrides[dateStr] : (schedule[day] || []);
+    for (const name of items) {
       const key = `${dateStr}|${name.toLowerCase().trim()}`;
       if (!existing.has(key)) {
         newEntries.push({ date: dateStr, class: name, notes: '', fromSchedule: true });
@@ -943,10 +947,15 @@ function checkPastWeekAutoLog() {
     if (logged.has(weekStr)) continue;                   // already processed
     // Only mark the week done if the schedule actually has entries —
     // avoids permanently skipping weeks that predate the schedule being set up
-    const weekHasSchedule = DAYS.some(d => (schedule[d] || []).length > 0);
+    const weekHasSchedule = DAYS.some(d => {
+      const ds = isoD(dm[d]);
+      return (dateOverrides.hasOwnProperty(ds) ? dateOverrides[ds] : (schedule[d] || [])).length > 0;
+    });
     for (const day of DAYS) {
       const dateStr = isoD(dm[day]);
-      for (const name of (schedule[day] || [])) {
+      // Use dateOverrides for this date if set, otherwise fall back to repeating schedule
+      const items = dateOverrides.hasOwnProperty(dateStr) ? dateOverrides[dateStr] : (schedule[day] || []);
+      for (const name of items) {
         const key = `${dateStr}|${name.toLowerCase().trim()}`;
         if (!existing.has(key)) {
           newEntries.push({ date: dateStr, class: name, notes: '', fromSchedule: true });
