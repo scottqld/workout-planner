@@ -389,21 +389,6 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
   </div>
 </div>
 
-<!-- ── Log note modal ── -->
-<div class="overlay" id="ov-log-note">
-  <div class="modal" style="max-width:320px">
-    <h3 id="log-note-title" style="margin-bottom:4px">Log class</h3>
-    <p id="log-note-subtitle" style="font-size:13px;color:#888;margin-bottom:14px"></p>
-    <textarea id="log-note-input" placeholder="Add a note… (optional)"
-      style="width:100%;box-sizing:border-box;height:72px;padding:9px 11px;border:1.5px solid #c8e0c8;border-radius:10px;font-size:13px;font-family:inherit;resize:none;outline:none;transition:border-color .15s"
-      onfocus="this.style.borderColor='#4a8a4a'" onblur="this.style.borderColor='#c8e0c8'"
-      onkeydown="if(event.key==='Enter'&&(event.metaKey||event.ctrlKey))confirmLogNote()"></textarea>
-    <div class="modal-actions" style="margin-top:14px">
-      <button class="btn btn-ghost" onclick="confirmLogNote()">Log it</button>
-    </div>
-  </div>
-</div>
-
 <!-- ── Backup / Restore modal ── -->
 <div class="overlay" id="ov-backup">
   <div class="modal">
@@ -479,7 +464,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.97'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.99'; // auto-bumped by pre-commit hook
 const SEED_LOG_VER = '1.78'; // bump to force-reset log from SEED_LOG_TEXT
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -1019,37 +1004,8 @@ function removeRetroScheduleEntries() {
   }
 }
 
-// ── Log-with-note flow ────────────────────────────────────────────────────
-let _pendingLog = null; // { dateStr, dayKey, className: string|null }
-
-// Open the note modal for a single class (className set) or all remaining (className null).
-function openLogNote(dateStr, dayKey, className) {
-  _pendingLog = { dateStr, dayKey, className };
-  const title    = document.getElementById('log-note-title');
-  const subtitle = document.getElementById('log-note-subtitle');
-  const input    = document.getElementById('log-note-input');
-  title.textContent    = className ? `Log: ${className}` : 'Log all remaining classes';
-  subtitle.textContent = dateStr;
-  input.value = '';
-  openOverlay('ov-log-note');
-  setTimeout(() => input.focus(), 80);
-}
-
-function confirmLogNote() {
-  if (!_pendingLog) return;
-  const note = (document.getElementById('log-note-input').value || '').trim();
-  const { dateStr, dayKey, className } = _pendingLog;
-  _pendingLog = null;
-  closeOverlay('ov-log-note');
-  if (className) {
-    logClass(dateStr, className, note);
-  } else {
-    logDay(dateStr, dayKey, note);
-  }
-}
-
-// Log all unlogged scheduled classes for a day, with an optional note.
-function logDay(dateStr, dayKey, note = '') {
+// Log all unlogged scheduled classes for a day.
+function logDay(dateStr, dayKey) {
   const items = dateOverrides.hasOwnProperty(dateStr)
     ? dateOverrides[dateStr]
     : (schedule[dayKey] || []);
@@ -1059,7 +1015,7 @@ function logDay(dateStr, dayKey, note = '') {
   for (const name of items) {
     const key = `${dateStr}|${name.toLowerCase().trim()}`;
     if (!existing.has(key)) {
-      newEntries.push({ date: dateStr, class: name, notes: note });
+      newEntries.push({ date: dateStr, class: name, notes: '' });
     }
   }
   if (!newEntries.length) return;
@@ -2399,7 +2355,7 @@ function renderSchedule() {
       }
       const todayDot  = today ? ' <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#2e6b30;vertical-align:middle;margin-left:3px"></span>' : '';
       const doneTick  = (isPast || today) && items.length && !isDone
-        ? `<button class="day-tick-btn" onclick="openLogNote('${dateStr}','${dayKey}',null)" title="Mark as done">✓ done</button>`
+        ? `<button class="day-tick-btn" onclick="logDay('${dateStr}','${dayKey}')" title="Mark as done">✓ done</button>`
         : '';
       const nameStyle = isPast && !today ? ' past' : '';
       return `<div class="sched-row${today ? ' row-today' : ''}${isDone ? ' row-done' : ''}">
@@ -3051,7 +3007,7 @@ function setAllCats(open) {
 function openOverlay(id)  { document.getElementById(id).classList.add('open'); }
 function closeOverlay(id) { document.getElementById(id).classList.remove('open'); }
 document.addEventListener('click', e => {
-  ['ov-class','ov-import','ov-backup','ov-log','ov-day-edit','ov-sync','ov-log-note'].forEach(id => {
+  ['ov-class','ov-import','ov-backup','ov-log','ov-day-edit','ov-sync'].forEach(id => {
     if (e.target === document.getElementById(id)) closeOverlay(id);
   });
 });
