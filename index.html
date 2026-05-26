@@ -516,7 +516,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.107'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.108'; // auto-bumped by pre-commit hook
 const SEED_LOG_VER = '1.78'; // bump to force-reset log from SEED_LOG_TEXT
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -2433,7 +2433,7 @@ function renderSchedule() {
         </div>
         ${catPillsHtml ? `<div class="sched-row-cats">${catPillsHtml}</div>` : ''}
         <div class="sched-row-chips">${classChipsHtml}</div>
-        <button class="sched-add-btn" title="Edit day" onclick="openDayEdit('${dayKey}',false,'${dateStr}')">+</button>
+        <button class="sched-add-btn" title="Add category" onclick="openCatAddPicker('${dateStr}','${dayKey}')">+</button>
       </div>`;
     }).join('');
     return header + rowsHtml;
