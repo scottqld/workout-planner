@@ -453,7 +453,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.54'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.55'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -1821,8 +1821,9 @@ function renderSchedule() {
           const db    = c ? durBadge(c.duration) : '';
           const cnt   = classCounts[(name||'').trim().toLowerCase()] || 0;
           const pill  = cnt ? `<span class="count-pill">${cnt}×</span>` : '';
+          const link  = schedLinkBtn(c, name);
           return `<span class="sched-chip" onclick="openDayEdit('${dayKey}',false,'${dateStr}')">
-            <span class="sched-chip-name">${esc(name)}</span>${dur}${db}${pill}
+            <span class="sched-chip-name">${esc(name)}</span>${dur}${db}${pill}${link}
             <button class="sched-chip-del" onclick="event.stopPropagation();tiDeleteDateEntry('${dateStr}','${dayKey}',${idx})">×</button>
           </span>`;
         }).join('');
