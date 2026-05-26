@@ -485,7 +485,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.70'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.71'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -1385,7 +1385,7 @@ async function autoLinkDriveClasses() {
   try {
     do {
       const params = new URLSearchParams({
-        q:         `'${DRIVE_FOLDER_ID}' in parents and trashed=false`,
+        q:         `mimeType != 'application/vnd.google-apps.folder' and trashed=false`,
         fields:    'nextPageToken,files(id,name,webViewLink)',
         pageSize:  '1000',
         orderBy:   'name',
@@ -1565,7 +1565,7 @@ async function openDriveFile(name) {
 
   // Search the folder using the first word (Drive 'contains' = substring match)
   const firstWord = key.split(/\s+/)[0].replace(/'/g, "\\'");
-  const q = encodeURIComponent(`'${DRIVE_FOLDER_ID}' in parents and name contains '${firstWord}' and trashed=false`);
+  const q = encodeURIComponent(`name contains '${firstWord}' and mimeType != 'application/vnd.google-apps.folder' and trashed=false`);
   try {
     const res = await fetch(
       `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,webViewLink)&orderBy=name&pageSize=50`,
