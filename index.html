@@ -454,7 +454,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.79'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.81'; // auto-bumped by pre-commit hook
 const SEED_LOG_VER = '1.78'; // bump to force-reset log from SEED_LOG_TEXT
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -974,6 +974,29 @@ function removeRetroScheduleEntries() {
     const strip = ({ _idx, ...o }) => o;
     localStorage.setItem('wp-log', JSON.stringify(logData.map(strip)));
   }
+}
+
+// Log all scheduled classes for a specific past day (called when user clicks the ✓ tick).
+function logDay(dateStr, dayKey) {
+  const items = dateOverrides.hasOwnProperty(dateStr)
+    ? dateOverrides[dateStr]
+    : (schedule[dayKey] || []);
+  if (!items.length) return;
+  const existing = new Set(logData.map(e => `${e.date}|${(e['class']||'').toLowerCase().trim()}`));
+  const newEntries = [];
+  for (const name of items) {
+    const key = `${dateStr}|${name.toLowerCase().trim()}`;
+    if (!existing.has(key)) {
+      newEntries.push({ date: dateStr, class: name, notes: '' });
+    }
+  }
+  if (!newEntries.length) return;
+  const strip = ({ _idx, _src, ...o }) => o;
+  const all = [...logData.map(strip), ...newEntries];
+  all.sort((a, b) => (b.date||'').localeCompare(a.date||''));
+  logData = all.map((o, i) => ({ ...o, _idx: i }));
+  persist();
+  renderSchedule();
 }
 
 // Commit this week's schedule to the log for days that have already passed.
@@ -2229,7 +2252,11 @@ function renderSchedule() {
         chips = `<span class="sched-rest">rest</span>`;
       }
       const todayDot  = today ? ' <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#2e6b30;vertical-align:middle;margin-left:3px"></span>' : '';
-      const doneTick  = isDone ? `<span style="flex-shrink:0;font-size:11px;font-weight:700;color:#fff;background:#2e6b30;border-radius:10px;padding:2px 8px;letter-spacing:.2px">✓ done</span>` : '';
+      const doneTick  = isPast && items.length
+        ? isDone
+          ? `<span style="flex-shrink:0;font-size:11px;font-weight:700;color:#fff;background:#2e6b30;border-radius:10px;padding:2px 8px;letter-spacing:.2px">✓ done</span>`
+          : `<button onclick="logDay('${dateStr}','${dayKey}')" title="Mark as done" style="flex-shrink:0;font-size:11px;font-weight:600;color:#aaa;background:none;border:1.5px solid #ccc;border-radius:10px;padding:2px 8px;letter-spacing:.2px;cursor:pointer">✓</button>`
+        : '';
       const nameStyle = isPast && !today ? ' past' : '';
       return `<div class="sched-row${today ? ' row-today' : ''}">
         <div class="sched-row-day">
