@@ -157,6 +157,10 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .sched-row        { display:flex;align-items:center;padding:5px 12px;border-bottom:1px solid #f0f2f0;gap:8px;min-height:36px; }
 .sched-row:hover  { background:#fafcfa; }
 .sched-row.row-today { background:#edf7ed; }
+.sched-row.row-done { background:#eef6ee;border-bottom-color:#daeeda; }
+.sched-row.row-done:hover { background:#e8f4e8; }
+.sched-row.row-done .sched-row-chips { opacity:.5; }
+.sched-row.row-done .sched-row-name { color:#7ab87c; }
 .sched-row-day    { width:64px;flex-shrink:0; }
 .sched-row-name   { font-size:12px;font-weight:700;color:#2e6b30;display:block;line-height:1.3; }
 .sched-row-name.past { color:#aaa; }
@@ -460,7 +464,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.83'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.85'; // auto-bumped by pre-commit hook
 const SEED_LOG_VER = '1.78'; // bump to force-reset log from SEED_LOG_TEXT
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -2264,7 +2268,7 @@ function renderSchedule() {
           : `<button class="day-tick-btn" onclick="logDay('${dateStr}','${dayKey}')" title="Mark as done">✓ done</button>`
         : '';
       const nameStyle = isPast && !today ? ' past' : '';
-      return `<div class="sched-row${today ? ' row-today' : ''}">
+      return `<div class="sched-row${today ? ' row-today' : ''}${isDone ? ' row-done' : ''}">
         <div class="sched-row-day">
           <span class="sched-row-name${nameStyle}">${DAY_SHORT[dayKey]}${todayDot}</span>
           <span class="sched-row-date">${dayFmt(dt)}</span>
