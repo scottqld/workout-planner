@@ -519,7 +519,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.111'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.112'; // auto-bumped by pre-commit hook
 const SEED_LOG_VER = '1.78'; // bump to force-reset log from SEED_LOG_TEXT
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -866,6 +866,8 @@ async function syncPull(showFeedback) {
     setSyncDot('ok');
     if (msg && showFeedback) msg.textContent = 'Pulled — data updated.';
     render();
+    renderSchedule();
+    renderLog();
   } catch (e) {
     console.warn('Sync pull failed:', e);
     setSyncDot('error');
@@ -3236,6 +3238,7 @@ function submitLogDay() {
   closeOverlay('ov-log-day');
   render();
   renderLog();
+  renderSchedule();
   showOk(`Logged ${newEntries.length} class${newEntries.length !== 1 ? 'es' : ''}`);
 }
 
