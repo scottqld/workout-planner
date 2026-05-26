@@ -464,7 +464,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.91'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.93'; // auto-bumped by pre-commit hook
 const SEED_LOG_VER = '1.78'; // bump to force-reset log from SEED_LOG_TEXT
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -2327,7 +2327,7 @@ function renderSchedule() {
       const today     = isToday(dt);
       const isPast    = dt < todayDt;
       const dateStr   = isoDate(dt);
-      const loggedCnt = isPast ? (dateLogMap.get(dateStr) || []).length : 0;
+      const loggedCnt = (isPast || today) ? (dateLogMap.get(dateStr) || []).length : 0;
       const isDone    = loggedCnt > 0;
       const items     = dateOverrides.hasOwnProperty(dateStr) ? dateOverrides[dateStr] : (schedule[dayKey] || []);
       let chips;
@@ -2348,7 +2348,7 @@ function renderSchedule() {
         chips = `<span class="sched-rest">rest</span>`;
       }
       const todayDot  = today ? ' <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#2e6b30;vertical-align:middle;margin-left:3px"></span>' : '';
-      const doneTick  = isPast && items.length && !isDone
+      const doneTick  = (isPast || today) && items.length && !isDone
         ? `<button class="day-tick-btn" onclick="logDay('${dateStr}','${dayKey}')" title="Mark as done">✓ done</button>`
         : '';
       const nameStyle = isPast && !today ? ' past' : '';
