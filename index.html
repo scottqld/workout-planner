@@ -466,7 +466,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.87'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.89'; // auto-bumped by pre-commit hook
 const SEED_LOG_VER = '1.78'; // bump to force-reset log from SEED_LOG_TEXT
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -532,6 +532,10 @@ function startApp() {
     syncPush(false);
   } else {
     syncPull(false);  // async — silently refreshes from cloud if configured
+  }
+  // If Drive was previously connected, silently scan for new files in the background
+  if (localStorage.getItem('wp-drive-autoscan') === '1') {
+    setTimeout(() => syncDriveNewFiles(true), 2000);
   }
 }
 
@@ -851,6 +855,20 @@ async function syncPush(showFeedback) {
     setSyncDot('error');
     if (msg && showFeedback) msg.textContent = 'Push failed: ' + e.message;
   }
+}
+
+function showToast(msg, duration = 4000) {
+  let el = document.getElementById('app-toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'app-toast';
+    el.style.cssText = 'position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(12px);background:#2e6b30;color:#fff;padding:10px 22px;border-radius:22px;font-size:13px;font-weight:600;box-shadow:0 4px 18px rgba(0,0,0,.22);z-index:9999;opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;white-space:nowrap';
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  clearTimeout(el._t);
+  requestAnimationFrame(() => { el.style.opacity = '1'; el.style.transform = 'translateX(-50%) translateY(0)'; });
+  el._t = setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateX(-50%) translateY(12px)'; }, duration);
 }
 
 function setSyncDot(status) {
@@ -1326,7 +1344,7 @@ function loadGISScript() {
   });
 }
 
-function getDriveToken() {
+function getDriveToken(silent = false) {
   return new Promise(async (resolve, reject) => {
     if (!googleClientId) {
       reject(new Error('No Google Client ID — add it in ☁ Sync settings'));
@@ -1341,10 +1359,12 @@ function getDriveToken() {
     const client = google.accounts.oauth2.initTokenClient({
       client_id: googleClientId,
       scope:     'https://www.googleapis.com/auth/drive.readonly',
+      prompt:    silent ? '' : undefined,
       callback:  (resp) => {
         if (resp.error) { reject(new Error(resp.error_description || resp.error)); return; }
         _driveToken       = resp.access_token;
         _driveTokenExpiry = Date.now() + (resp.expires_in || 3600) * 1000;
+        localStorage.setItem('wp-drive-autoscan', '1');
         resolve(resp.access_token);
       },
     });
@@ -1450,12 +1470,78 @@ async function autoLinkDriveClasses() {
   }
 
   if (matched) { persist(); render(); }
+
+  // Also pick up any Drive files that don't match any class at all — add them as new classes
+  const added = await syncDriveNewFiles(false, allFiles);
   btn.disabled = false;
   const skipped = unlinked.length - matched;
+  const newPart = added ? `, ${added} new class${added > 1 ? 'es' : ''} added` : '';
   status.style.color = skipped === 0 ? '#2e6b30' : '#888';
   status.textContent = matched === unlinked.length
-    ? `✓ All ${matched} classes linked automatically.`
-    : `✓ ${matched} linked, ${skipped} unmatched (names may differ — set those via Edit).`;
+    ? `✓ All ${matched} linked${newPart}.`
+    : `✓ ${matched} linked, ${skipped} unmatched (set those via Edit)${newPart}.`;
+}
+
+// Scan Drive for files not yet represented as a class and add them automatically.
+// Accepts an optional pre-fetched file list to avoid a second round-trip from autoLinkDriveClasses.
+async function syncDriveNewFiles(showToastOnAdd = true, prefetchedFiles = null) {
+  let token;
+  try { token = await getDriveToken(true); }
+  catch { return 0; }  // no cached session — silently bail
+
+  let allFiles = prefetchedFiles;
+  if (!allFiles) {
+    allFiles = [];
+    let pageToken = null;
+    try {
+      do {
+        const params = new URLSearchParams({
+          q:        `mimeType != 'application/vnd.google-apps.folder' and trashed=false`,
+          fields:   'nextPageToken,files(id,name,webViewLink)',
+          pageSize: '1000',
+          orderBy:  'name',
+        });
+        if (pageToken) params.set('pageToken', pageToken);
+        const res = await fetch(
+          `https://www.googleapis.com/drive/v3/files?${params}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (!res.ok) return 0;
+        const data = await res.json();
+        allFiles.push(...(data.files || []));
+        pageToken = data.nextPageToken || null;
+      } while (pageToken);
+    } catch { return 0; }
+  }
+
+  // IDs already linked to any class
+  const linkedIds = new Set(
+    files.map(c => c.url).filter(Boolean).flatMap(u => {
+      const m = u.match(/\/d\/([^/?#]+)/);
+      return m ? [m[1]] : [];
+    })
+  );
+
+  const newFiles = allFiles.filter(f => !linkedIds.has(f.id));
+  if (!newFiles.length) return 0;
+
+  const nameFromFile = f =>
+    f.name.replace(/\.[^.]+$/, '').replace(/[_\-]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  const strip = ({ _idx, _src, ...o }) => o;
+  const newEntries = newFiles.map(f => ({
+    name: nameFromFile(f),
+    url: f.webViewLink || `https://drive.google.com/file/d/${f.id}/view`,
+    category: '', duration: '', classType: '', instructor: '', tags: '', description: '', descCustom: false, notes: '',
+  }));
+
+  const all = [...files.map(strip), ...newEntries];
+  files = all.map((o, i) => applyAutoDesc({ description: '', descCustom: false, classType: '', instructor: '', ...o, _idx: i, _src: 'drive' }));
+  persist();
+  render();
+
+  if (showToastOnAdd) showToast(`${newEntries.length} new class${newEntries.length > 1 ? 'es' : ''} added from Drive`);
+  return newEntries.length;
 }
 
 async function uploadToDrive() {
