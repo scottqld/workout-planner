@@ -514,7 +514,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.104'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.105'; // auto-bumped by pre-commit hook
 const SEED_LOG_VER = '1.78'; // bump to force-reset log from SEED_LOG_TEXT
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -2733,15 +2733,12 @@ function _renderCatPickList() {
     return;
   }
   el.innerHTML = pool.map(c => {
-    const cnt  = counts[c.name] || 0;
-    const meta = [fmtDur(c.duration), cnt ? `${cnt}×` : ''].filter(Boolean).join(' · ');
+    const cnt      = counts[c.name] || 0;
+    const meta     = [fmtDur(c.duration), cnt ? `${cnt}×` : ''].filter(Boolean).join(' · ');
     const safeName = esc(c.name).replace(/'/g, "\\'");
     return `<div class="day-cat-item" onclick="catPickSelectClass('${safeName}')">
-      <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.name)}</div>
-        ${meta ? `<div style="font-size:11px;color:#999;margin-top:1px">${esc(meta)}</div>` : ''}
-      </div>
-      ${cnt ? `<span class="count-pill" style="flex-shrink:0">${cnt}×</span>` : '<span style="width:28px"></span>'}
+      <span style="flex:1;font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">${esc(c.name)}</span>
+      ${meta ? `<span style="font-size:11px;color:#999;flex-shrink:0;margin-left:8px">${esc(meta)}</span>` : ''}
     </div>`;
   }).join('');
 }
