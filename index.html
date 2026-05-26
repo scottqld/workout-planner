@@ -103,10 +103,10 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .col-head .ch-dur   { width: 46px; text-align: right; flex-shrink: 0; }
 .col-head .ch-link  { width: 36px; flex-shrink: 0; }
 .col-head .ch-count { width: 36px; text-align: right; flex-shrink: 0; }
-.class-link-btn       { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 20px; border-radius: 4px; background: #e8f0fe; color: #1a5cb8; font-size: 12px; text-decoration: none; border: 1px solid #c5d8fb; }
+.class-link-btn       { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 20px; border-radius: 4px; background: #e8f0fe; color: #1a5cb8; font-size: 12px; text-decoration: none; border: 1px solid #c5d8fb; cursor: pointer; }
 .class-link-btn:hover { background: #d0e4ff; }
-.class-link-btn.folder       { background: #f4f4f4; color: #999; border-color: #ddd; font-size: 11px; }
-.class-link-btn.folder:hover { background: #e8e8e8; color: #555; }
+.class-link-btn.no-url       { background: #f4f4f4; color: #aaa; border-color: #ddd; border-style: dashed; font-size: 14px; line-height: 1; }
+.class-link-btn.no-url:hover { background: #eaf3ea; color: #2e6b30; border-color: #9ccb9c; border-style: dashed; }
 .class-link-col { width: 36px; flex-shrink: 0; }
 .col-head .ch-tags  { display: none; }
 .col-head .ch-last { width: 90px; text-align: right; flex-shrink: 0; }
@@ -481,7 +481,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.67'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.68'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -1196,7 +1196,7 @@ function renderCat(cat, items, lastDone, classCounts) {
         c.url
           ? `<a href="${esc(c.url)}" target="_blank" rel="noopener" class="class-link-btn" title="Play">▶</a>`
           : c._src === 'drive'
-            ? `<button type="button" class="class-link-btn" title="Find and play in Drive" onclick="openDriveFile(${JSON.stringify(c.name).replace(/"/g,'&quot;')})">▶</button>`
+            ? `<button type="button" class="class-link-btn no-url" title="Paste Google Drive share link — click to Edit" onclick="openEdit('${c._src}',${c._idx})">+</button>`
             : ''
       }</span>
       <span class="class-count" title="${count} time${count!==1?'s':''} done">${count || ''}</span>
@@ -1464,14 +1464,10 @@ async function openDriveFile(name) {
     return;
   }
 
-  // Never trigger OAuth from a play button — use pre-obtained token only.
-  // Authorise once via ☁ Sync → "Connect Google Drive".
+  // No direct URL set — guide the user to Edit to paste a Drive share link
   const token = _driveToken && Date.now() < _driveTokenExpiry - 60000 ? _driveToken : null;
   if (!token) {
-    showErr(googleClientId
-      ? 'Google Drive not connected — open ☁ Sync and click "Connect Google Drive".'
-      : 'Google Drive not set up — open ☁ Sync settings to configure.');
-    openSync();
+    showErr(`No link set for "${name}" — click Edit on this class and paste the Google Drive share URL into the URL field.`);
     return;
   }
 
@@ -2079,8 +2075,8 @@ function isToday(dt) {
 function schedLinkBtn(c, name) {
   if (c?.url) return `<a href="${esc(c.url)}" target="_blank" class="class-link-btn" title="Play">▶</a>`;
   if (c?._src === 'drive') {
-    const arg = JSON.stringify(name).replace(/"/g, '&quot;');
-    return `<button type="button" class="class-link-btn" title="Find and play in Drive" onclick="openDriveFile(${arg})">▶</button>`;
+    // No URL yet — show dashed + that opens the class Edit modal
+    return `<button type="button" class="class-link-btn no-url" title="Paste Google Drive share link — click to Edit" onclick="openEdit('${c._src}',${c._idx})">+</button>`;
   }
   return '';
 }
