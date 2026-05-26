@@ -161,8 +161,6 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .sched-row.row-done:hover { background:#e8f4e8; }
 .sched-row.row-done .sched-row-chips { opacity:.5; }
 .sched-row.row-done .sched-row-name { color:#7ab87c; }
-.sched-row.row-partial { background:#fdf6ee;border-bottom-color:#f0e4cc; }
-.sched-row.row-partial .sched-row-name { color:#b08040; }
 .sched-row-day    { width:64px;flex-shrink:0; }
 .sched-row-name   { font-size:12px;font-weight:700;color:#2e6b30;display:block;line-height:1.3; }
 .sched-row-name.past { color:#aaa; }
@@ -171,10 +169,6 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .sched-chip           { display:inline-flex;align-items:center;gap:4px;padding:3px 5px 3px 8px;border-radius:14px;border:1px solid #d4e8d4;background:#f4f9f4;font-size:12px;cursor:pointer;max-width:100%; }
 .sched-chip:hover     { background:#dff0df;border-color:#9ccb9c; }
 .sched-chip.done      { border-color:#2e6b30;background:#eaf5ea; }
-.sched-chip.chip-logged { border-color:#2e6b30;background:#e4f3e4;opacity:.7; }
-.chip-logged-mark { font-size:11px;font-weight:700;color:#2e6b30;flex-shrink:0; }
-.chip-tick-btn { background:none;border:none;color:#4a8a4a;font-size:12px;font-weight:700;cursor:pointer;padding:0 1px;line-height:1;flex-shrink:0;opacity:.6;transition:opacity .1s; }
-.chip-tick-btn:hover { opacity:1; }
 .sched-chip-name  { overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px; }
 .sched-chip-dur   { font-size:11px;color:#888;flex-shrink:0; }
 .sched-chip-del   { background:none;border:none;color:#c00;font-size:13px;padding:0 1px;line-height:1;cursor:pointer;flex-shrink:0;opacity:.6; }
@@ -485,7 +479,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.95'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.97'; // auto-bumped by pre-commit hook
 const SEED_LOG_VER = '1.78'; // bump to force-reset log from SEED_LOG_TEXT
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -1077,18 +1071,6 @@ function logDay(dateStr, dayKey, note = '') {
   renderSchedule();
 }
 
-// Log a single class for a date, with an optional note.
-function logClass(dateStr, className, note = '') {
-  const key = `${dateStr}|${(className||'').toLowerCase().trim()}`;
-  const existing = new Set(logData.map(e => `${e.date}|${(e['class']||'').toLowerCase().trim()}`));
-  if (existing.has(key)) return;
-  const strip = ({ _idx, _src, ...o }) => o;
-  const all = [...logData.map(strip), { date: dateStr, class: className, notes: note }];
-  all.sort((a, b) => (b.date||'').localeCompare(a.date||''));
-  logData = all.map((o, i) => ({ ...o, _idx: i }));
-  persist();
-  renderSchedule();
-}
 
 // Commit this week's schedule to the log for days that have already passed.
 // Uses class-level dedup so a manual entry on a day doesn't block scheduled classes.
@@ -2395,30 +2377,20 @@ function renderSchedule() {
       const today     = isToday(dt);
       const isPast    = dt < todayDt;
       const dateStr   = isoDate(dt);
-      const loggedClasses = new Set(
-        (isPast || today) ? (dateLogMap.get(dateStr) || []).map(e => (e['class']||'').toLowerCase().trim()) : []
-      );
       const items     = dateOverrides.hasOwnProperty(dateStr) ? dateOverrides[dateStr] : (schedule[dayKey] || []);
-      const allLogged = items.length > 0 && items.every(n => loggedClasses.has((n||'').toLowerCase().trim()));
-      const anyLogged = items.some(n => loggedClasses.has((n||'').toLowerCase().trim()));
-      const isDone    = allLogged;
+      const loggedCnt = (isPast || today) ? (dateLogMap.get(dateStr) || []).length : 0;
+      const isDone    = loggedCnt > 0;
       let chips;
       if (items.length > 0) {
         chips = items.map((name, idx) => {
-          const c          = classMap.get((name||'').toLowerCase().trim());
-          const dur        = c ? `<span class="sched-chip-dur">${fmtDur(c.duration)}</span>` : '';
-          const db         = c ? durBadge(c.duration) : '';
-          const cnt        = classCounts[(name||'').trim().toLowerCase()] || 0;
-          const pill       = cnt ? `<span class="count-pill">${cnt}×</span>` : '';
-          const link       = schedLinkBtn(c, name);
-          const isLogged   = loggedClasses.has((name||'').toLowerCase().trim());
-          const tickOrMark = (isPast || today)
-            ? isLogged
-              ? `<span class="chip-logged-mark">✓</span>`
-              : `<button type="button" class="chip-tick-btn" onclick="event.stopPropagation();openLogNote('${dateStr}','${dayKey}','${esc(name)}')" title="Log this class">✓</button>`
-            : '';
-          return `<span class="sched-chip${isLogged ? ' chip-logged' : ''}" onclick="if(!event.target.closest('button,a'))openDayEdit('${dayKey}',false,'${dateStr}')">
-            <span class="sched-chip-name">${esc(name)}</span>${dur}${db}${pill}${link}${tickOrMark}
+          const c    = classMap.get((name||'').toLowerCase().trim());
+          const dur  = c ? `<span class="sched-chip-dur">${fmtDur(c.duration)}</span>` : '';
+          const db   = c ? durBadge(c.duration) : '';
+          const cnt  = classCounts[(name||'').trim().toLowerCase()] || 0;
+          const pill = cnt ? `<span class="count-pill">${cnt}×</span>` : '';
+          const link = schedLinkBtn(c, name);
+          return `<span class="sched-chip" onclick="if(!event.target.closest('button,a'))openDayEdit('${dayKey}',false,'${dateStr}')">
+            <span class="sched-chip-name">${esc(name)}</span>${dur}${db}${pill}${link}
             <button type="button" class="sched-chip-del" onclick="tiDeleteDateEntry('${dateStr}','${dayKey}',${idx})">×</button>
           </span>`;
         }).join('');
@@ -2426,11 +2398,11 @@ function renderSchedule() {
         chips = `<span class="sched-rest">rest</span>`;
       }
       const todayDot  = today ? ' <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#2e6b30;vertical-align:middle;margin-left:3px"></span>' : '';
-      const doneTick  = (isPast || today) && items.length && !allLogged
-        ? `<button class="day-tick-btn" onclick="openLogNote('${dateStr}','${dayKey}',null)" title="Log all remaining">✓ done</button>`
+      const doneTick  = (isPast || today) && items.length && !isDone
+        ? `<button class="day-tick-btn" onclick="openLogNote('${dateStr}','${dayKey}',null)" title="Mark as done">✓ done</button>`
         : '';
       const nameStyle = isPast && !today ? ' past' : '';
-      return `<div class="sched-row${today ? ' row-today' : ''}${isDone ? ' row-done' : anyLogged ? ' row-partial' : ''}">
+      return `<div class="sched-row${today ? ' row-today' : ''}${isDone ? ' row-done' : ''}">
         <div class="sched-row-day">
           <span class="sched-row-name${nameStyle}">${DAY_SHORT[dayKey]}${todayDot}</span>
           <span class="sched-row-date">${dayFmt(dt)}</span>
