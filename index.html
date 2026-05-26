@@ -480,7 +480,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.63'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.64'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -1415,7 +1415,7 @@ const _driveFileCache = {}; // name.toLowerCase() → url | null
 async function openDriveFile(name) {
   const key = (name || '').toLowerCase().trim();
 
-  // Use session cache
+  // Cached result — synchronous, no await, so window.open is fine
   if (key in _driveFileCache) {
     if (_driveFileCache[key]) { window.open(_driveFileCache[key], '_blank'); return; }
     showErr(`No matching file found in Drive for "${name}" — use Edit to set the URL directly.`);
@@ -1433,6 +1433,10 @@ async function openDriveFile(name) {
     return;
   }
 
+  // Open a blank tab NOW (synchronous, still inside the user-gesture context) so
+  // Brave / Chrome popup-blocking doesn't kill it after the async fetch below.
+  const win = window.open('', '_blank');
+
   // Search the folder using the first word (Drive 'contains' = substring match)
   const firstWord = key.split(/\s+/)[0].replace(/'/g, "\\'");
   const q = encodeURIComponent(`'${DRIVE_FOLDER_ID}' in parents and name contains '${firstWord}' and trashed=false`);
@@ -1442,6 +1446,7 @@ async function openDriveFile(name) {
       { headers: { Authorization: `Bearer ${token}` } }
     );
     if (res.status === 401) {
+      win?.close();
       _driveToken = null; _driveTokenExpiry = 0;
       showErr('Drive session expired — open ☁ Sync and reconnect.');
       openOverlay('ov-sync');
@@ -1461,12 +1466,14 @@ async function openDriveFile(name) {
     if (best && bestScore > 0) {
       const link = best.webViewLink || `https://drive.google.com/file/d/${best.id}/view`;
       _driveFileCache[key] = link;
-      window.open(link, '_blank');
+      if (win) win.location.href = link; else window.open(link, '_blank');
     } else {
+      win?.close();
       _driveFileCache[key] = null;
       showErr(`No file found in Drive for "${name}" — use Edit to set the URL directly.`);
     }
   } catch (e) {
+    win?.close();
     showErr('Drive search failed — check your connection and try again.');
   }
 }
