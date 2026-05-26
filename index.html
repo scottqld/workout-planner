@@ -453,7 +453,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.48'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.49'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -1820,7 +1820,7 @@ function renderSchedule() {
         chips = `<span class="sched-rest">rest</span>`;
       }
       const todayDot  = today ? ' <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#2e6b30;vertical-align:middle;margin-left:3px"></span>' : '';
-      const doneTick  = isDone ? `<span style="display:block;font-size:10px;color:#2e6b30;font-weight:700;line-height:1.2">✓ done</span>` : '';
+      const doneTick  = isDone ? `<span style="display:inline-block;margin-top:3px;font-size:11px;font-weight:700;color:#fff;background:#2e6b30;border-radius:10px;padding:2px 8px;letter-spacing:.2px">✓ done</span>` : '';
       const nameStyle = isPast && !today ? ' past' : '';
       return `<div class="sched-row${today ? ' row-today' : ''}">
         <div class="sched-row-day">
