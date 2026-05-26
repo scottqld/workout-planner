@@ -476,7 +476,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.60'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.61'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -1139,7 +1139,7 @@ function renderCat(cat, items, lastDone, classCounts) {
         c.url
           ? `<a href="${esc(c.url)}" target="_blank" rel="noopener" class="class-link-btn" title="Play">▶</a>`
           : c._src === 'drive'
-            ? `<a href="https://drive.google.com/drive/folders/${DRIVE_FOLDER_ID}" target="_blank" rel="noopener" class="class-link-btn folder" title="Browse Drive folder">📁</a>`
+            ? `<button class="class-link-btn" title="Find and play in Drive" onclick="openDriveFile(${JSON.stringify(c.name)})">▶</button>`
             : ''
       }</span>
       <span class="class-count" title="${count} time${count!==1?'s':''} done">${count || ''}</span>
@@ -1363,6 +1363,65 @@ async function uploadToDrive() {
     statusEl.style.color = '#c0392b';
     statusEl.textContent = '⚠ ' + e.message;
   });
+}
+
+// Search the Drive folder by class name and open the best-matching file directly.
+// Results are cached for the session so repeated clicks are instant.
+const _driveFileCache = {}; // name.toLowerCase() → url | null
+
+async function openDriveFile(name) {
+  const key = (name || '').toLowerCase().trim();
+
+  // Use session cache
+  if (key in _driveFileCache) {
+    if (_driveFileCache[key]) { window.open(_driveFileCache[key], '_blank'); return; }
+    alert(`No file found in Drive for "${name}".\nUse Edit to set the URL directly.`);
+    return;
+  }
+
+  // No Client ID → fall back to folder
+  if (!googleClientId) {
+    window.open(`https://drive.google.com/drive/folders/${DRIVE_FOLDER_ID}`, '_blank');
+    return;
+  }
+
+  let token;
+  try { token = await getDriveToken(); }
+  catch (e) {
+    window.open(`https://drive.google.com/drive/folders/${DRIVE_FOLDER_ID}`, '_blank');
+    return;
+  }
+
+  // Search using the first word of the class name (Drive 'contains' searches substring)
+  const firstWord = key.split(/\s+/)[0].replace(/'/g, "\\'");
+  const q = encodeURIComponent(`'${DRIVE_FOLDER_ID}' in parents and name contains '${firstWord}' and trashed=false`);
+  try {
+    const res  = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,webViewLink)&orderBy=name&pageSize=50`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    const data = await res.json();
+
+    // Score each result: count how many words from the class name appear in the filename
+    const words = key.split(/\s+/).filter(Boolean);
+    let best = null, bestScore = -1;
+    for (const f of (data.files || [])) {
+      const fn    = f.name.toLowerCase();
+      const score = words.filter(w => fn.includes(w)).length;
+      if (score > bestScore) { bestScore = score; best = f; }
+    }
+
+    if (best && bestScore > 0) {
+      const link = best.webViewLink || `https://drive.google.com/file/d/${best.id}/view`;
+      _driveFileCache[key] = link;
+      window.open(link, '_blank');
+    } else {
+      _driveFileCache[key] = null;
+      alert(`No file found in Drive for "${name}".\nUse Edit to set the URL directly.`);
+    }
+  } catch (e) {
+    window.open(`https://drive.google.com/drive/folders/${DRIVE_FOLDER_ID}`, '_blank');
+  }
 }
 
 function submitClass() {
@@ -1923,7 +1982,7 @@ function isToday(dt) {
 
 function schedLinkBtn(c, name) {
   if (c?.url) return `<a href="${esc(c.url)}" target="_blank" class="class-link-btn" title="Play" onclick="event.stopPropagation()">▶</a>`;
-  if (c?._src === 'drive') return `<a href="https://drive.google.com/drive/folders/${DRIVE_FOLDER_ID}" target="_blank" class="class-link-btn folder" title="Browse Drive folder" onclick="event.stopPropagation()">📁</a>`;
+  if (c?._src === 'drive') return `<button class="class-link-btn" title="Find and play in Drive" onclick="event.stopPropagation();openDriveFile(${JSON.stringify(name)})">▶</button>`;
   return '';
 }
 
