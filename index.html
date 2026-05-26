@@ -454,7 +454,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.75'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.76'; // auto-bumped by pre-commit hook
 const SEED_LOG_VER = '1.74'; // bump to force-reset log from SEED_LOG_TEXT
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -704,9 +704,15 @@ function loadFromStorage() {
   }
   const raw = k => { try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch { return []; } };
   let f = raw('wp-files'), u = raw('wp-urls'), l = raw('wp-log');
-  // Force-reset log when seed version changes (fixes corrupted log data)
+  // Fix corrupted historical log data when seed version changes.
+  // Keeps any entries AFTER the seed cutoff (user's own recent workouts).
   if (localStorage.getItem('wp-log-seed-ver') !== SEED_LOG_VER) {
-    l = parseLogText(SEED_LOG_TEXT);
+    const SEED_CUTOFF = '2026-05-11'; // last date in exercise log.txt
+    const seedLog  = parseLogText(SEED_LOG_TEXT);
+    const existing = raw('wp-log');
+    const strip    = ({ _idx, _src, ...rest }) => rest;
+    const newer    = existing.map(strip).filter(e => e.date && e.date > SEED_CUTOFF);
+    l = [...newer, ...seedLog].sort((a, b) => b.date.localeCompare(a.date));
     localStorage.setItem('wp-log', JSON.stringify(l));
     localStorage.setItem('wp-log-seed-ver', SEED_LOG_VER);
   }
