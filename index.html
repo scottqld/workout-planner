@@ -480,7 +480,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.64'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.65'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -1154,7 +1154,7 @@ function renderCat(cat, items, lastDone, classCounts) {
         c.url
           ? `<a href="${esc(c.url)}" target="_blank" rel="noopener" class="class-link-btn" title="Play">▶</a>`
           : c._src === 'drive'
-            ? `<button type="button" class="class-link-btn" title="Find and play in Drive" onclick="openDriveFile(${JSON.stringify(c.name)})">▶</button>`
+            ? `<button type="button" class="class-link-btn" title="Find and play in Drive" onclick="openDriveFile(${JSON.stringify(c.name).replace(/"/g,'&quot;')})">▶</button>`
             : ''
       }</span>
       <span class="class-count" title="${count} time${count!==1?'s':''} done">${count || ''}</span>
@@ -2036,7 +2036,10 @@ function isToday(dt) {
 
 function schedLinkBtn(c, name) {
   if (c?.url) return `<a href="${esc(c.url)}" target="_blank" class="class-link-btn" title="Play">▶</a>`;
-  if (c?._src === 'drive') return `<button type="button" class="class-link-btn" title="Find and play in Drive" onclick="openDriveFile(${JSON.stringify(name)})">▶</button>`;
+  if (c?._src === 'drive') {
+    const arg = JSON.stringify(name).replace(/"/g, '&quot;');
+    return `<button type="button" class="class-link-btn" title="Find and play in Drive" onclick="openDriveFile(${arg})">▶</button>`;
+  }
   return '';
 }
 
