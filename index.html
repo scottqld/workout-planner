@@ -453,7 +453,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.51'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.52'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -1750,6 +1750,7 @@ function schedLinkBtn(c, name) {
 }
 
 function renderSchedule() {
+  commitScheduleToLog();   // re-apply in case syncPull overwrote logData
   const classMap   = buildClassMap();
   const dateLogMap = buildDateLogMap();
   const isoDate   = dt => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
