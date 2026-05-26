@@ -120,7 +120,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .log-row   { display: flex; align-items: center; padding: 6px 14px; border-bottom: 1px solid #f2f4f2; gap: 10px; }
 .log-row:last-child { border-bottom: none; }
 .log-row:hover { background: #fafcfa; }
-.log-date  { font-size: 12px; color: #666; width: 62px; flex-shrink: 0; }
+.log-date  { font-size: 12px; color: #666; width: 96px; flex-shrink: 0; }
 .log-class { flex: 1; font-size: 13px; }
 .log-notes { font-size: 12px; color: #999; flex: 0 0 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
@@ -453,7 +453,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.49'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.50'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -1356,7 +1356,7 @@ function fmtDur(code) {
   const s = String(code);
   return s.length < 3 ? s+'m' : `${parseInt(s.slice(0,-2),10)}:${s.slice(-2)}`;
 }
-function fmtDate(iso) { return new Date(iso).toLocaleDateString('en-AU',{day:'numeric',month:'short'}); }
+function fmtDate(iso) { return new Date(iso + 'T00:00:00').toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'}); }
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function durToMins(code) {
   if (!code) return 0;
