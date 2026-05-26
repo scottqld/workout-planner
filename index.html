@@ -480,7 +480,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.65'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.66'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -1429,7 +1429,7 @@ async function openDriveFile(name) {
     showErr(googleClientId
       ? 'Google Drive not connected — open ☁ Sync and click "Connect Google Drive".'
       : 'Google Drive not set up — open ☁ Sync settings to configure.');
-    openOverlay('ov-sync');
+    openSync();
     return;
   }
 
@@ -1449,7 +1449,7 @@ async function openDriveFile(name) {
       win?.close();
       _driveToken = null; _driveTokenExpiry = 0;
       showErr('Drive session expired — open ☁ Sync and reconnect.');
-      openOverlay('ov-sync');
+      openSync();
       return;
     }
     const data = await res.json();
