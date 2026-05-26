@@ -454,8 +454,8 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.78'; // auto-bumped by pre-commit hook
-const SEED_LOG_VER = '1.74'; // bump to force-reset log from SEED_LOG_TEXT
+const APP_VERSION = '1.79'; // auto-bumped by pre-commit hook
+const SEED_LOG_VER = '1.78'; // bump to force-reset log from SEED_LOG_TEXT
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -511,8 +511,7 @@ function startApp() {
   applyConfigFromHash();   // import settings from #sync= URL if present
   loadFromStorage();
   removeRetroScheduleEntries();
-  commitScheduleToLog();
-  checkPastWeekAutoLog();
+  // Auto-logging disabled — entries are only created by the user manually.
   render();
   showTab('schedule');
   // After a log reset, push clean data to cloud instead of pulling old data back
@@ -2150,7 +2149,6 @@ function schedLinkBtn(c, name) {
 }
 
 function renderSchedule() {
-  commitScheduleToLog();   // re-apply in case syncPull overwrote logData
   const classMap   = buildClassMap();
   const dateLogMap = buildDateLogMap();
   const isoDate   = dt => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
