@@ -449,9 +449,16 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
     <h3>Log a day</h3>
     <div class="field">
       <label>Date</label>
-      <input id="lday-date" type="date" oninput="updateLogDayPreview()">
+      <input id="lday-date" type="date" oninput="updateLogDayClasses()">
     </div>
-    <div id="lday-preview" style="font-size:13px;color:#666;margin-top:4px;min-height:20px;padding:6px 0"></div>
+    <div id="lday-classes" style="margin:8px 0 4px"></div>
+    <div style="display:flex;gap:6px;margin-top:8px;align-items:center">
+      <input id="lday-extra" class="search" type="text" list="lday-extra-list"
+             placeholder="Add a class…" style="flex:1;font-size:13px;padding:6px 10px"
+             onkeydown="if(event.key==='Enter'){event.preventDefault();lDayAddExtra();}">
+      <datalist id="lday-extra-list"></datalist>
+      <button class="btn btn-ghost" style="font-size:12px;padding:5px 10px;flex-shrink:0" onclick="lDayAddExtra()">+ Add</button>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeOverlay('ov-log-day')">Cancel</button>
       <button class="btn btn-primary" onclick="submitLogDay()">Log</button>
@@ -488,7 +495,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.101'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.102'; // auto-bumped by pre-commit hook
 const SEED_LOG_VER = '1.78'; // bump to force-reset log from SEED_LOG_TEXT
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -2965,42 +2972,94 @@ function openLogAdd() {
   document.getElementById('ml-class').focus();
 }
 
+let _lDayExtras = [];  // classes manually added in the Log day modal
+
 function openLogDayAdd() {
-  // Default to yesterday so it's most likely to be a day needing backfill
+  _lDayExtras = [];
   const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
   document.getElementById('lday-date').value = yesterday.toISOString().slice(0, 10);
-  updateLogDayPreview();
+  document.getElementById('lday-extra').value = '';
+  populateLDayClassList();
+  updateLogDayClasses();
   openOverlay('ov-log-day');
 }
 
-function updateLogDayPreview() {
-  const dateStr = document.getElementById('lday-date').value;
-  const el = document.getElementById('lday-preview');
-  if (!dateStr) { el.textContent = ''; return; }
-  const dt = new Date(dateStr + 'T00:00:00');
-  const DOW_KEY = ['sun','mon','tue','wed','thu','fri','sat'];
-  const dayKey  = DOW_KEY[dt.getDay()];
-  const items   = dateOverrides.hasOwnProperty(dateStr) ? dateOverrides[dateStr] : (schedule[dayKey] || []);
+function populateLDayClassList() {
+  const nameMap = new Map();
+  for (const c of files) { const k=(c.name||'').toLowerCase().trim(); if(k && !nameMap.has(k)) nameMap.set(k,c.name); }
+  for (const c of urls)  { const k=(c.name||'').toLowerCase().trim(); if(k) nameMap.set(k,c.name); }
+  document.getElementById('lday-extra-list').innerHTML =
+    Array.from(nameMap.values()).sort().map(n => `<option value="${esc(n)}">`).join('');
+}
+
+function updateLogDayClasses() {
+  _lDayExtras = [];
+  document.getElementById('lday-extra').value = '';
+  _renderLDayClasses();
+}
+
+function _renderLDayClasses() {
+  const dateStr  = document.getElementById('lday-date').value;
+  const el       = document.getElementById('lday-classes');
+  if (!dateStr) { el.innerHTML = ''; return; }
+  const dt       = new Date(dateStr + 'T00:00:00');
+  const DOW_KEY  = ['sun','mon','tue','wed','thu','fri','sat'];
+  const dayKey   = DOW_KEY[dt.getDay()];
+  const sched    = dateOverrides.hasOwnProperty(dateStr) ? dateOverrides[dateStr] : (schedule[dayKey] || []);
   const existing = new Set(logData.filter(e => e.date === dateStr).map(e => (e['class']||'').toLowerCase().trim()));
-  const toLog    = items.filter(n => !existing.has((n||'').toLowerCase().trim()));
-  if (!items.length) {
-    el.textContent = 'No classes scheduled for this day.';
-  } else if (!toLog.length) {
-    el.innerHTML = '<span style="color:#4a8a4a">✓ All classes already logged for this day.</span>';
+
+  let html = '';
+  if (sched.length || _lDayExtras.length) {
+    const allItems = [
+      ...sched.map(name => ({ name, isExtra: false, done: existing.has((name||'').toLowerCase().trim()) })),
+      ..._lDayExtras.map((name, i) => ({ name, isExtra: true, extraIdx: i, done: false })),
+    ];
+    html = allItems.map(({ name, isExtra, extraIdx, done }) => {
+      const id = isExtra ? `lday-x-${extraIdx}` : `lday-s-${esc(name)}`;
+      return `<label style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;cursor:${done?'default':'pointer'}">
+        <input type="checkbox" id="${id}" value="${esc(name)}" ${done?'disabled':'checked'} style="width:15px;height:15px">
+        <span${done?' style="color:#aaa;text-decoration:line-through"':''}>${esc(name)}</span>
+        ${done?'<span style="font-size:11px;color:#aaa;margin-left:2px">already logged</span>':''}
+        ${isExtra?`<button type="button" onclick="_lDayExtras.splice(${extraIdx},1);_renderLDayClasses()"
+          style="background:none;border:none;color:#bbb;cursor:pointer;font-size:15px;line-height:1;padding:0 2px;margin-left:auto">×</button>`:''}
+      </label>`;
+    }).join('');
   } else {
-    el.innerHTML = `Will log: <strong>${toLog.map(n => esc(n)).join(', ')}</strong>`;
+    html = '<div style="color:#aaa;font-size:13px;padding:4px 0">No classes scheduled — add one below.</div>';
   }
+  el.innerHTML = html;
+}
+
+function lDayAddExtra() {
+  const val = (document.getElementById('lday-extra').value || '').trim();
+  if (!val) return;
+  if (!_lDayExtras.map(s => s.toLowerCase()).includes(val.toLowerCase())) {
+    _lDayExtras.push(val);
+    _renderLDayClasses();
+  }
+  document.getElementById('lday-extra').value = '';
 }
 
 function submitLogDay() {
   const dateStr = document.getElementById('lday-date').value;
   if (!dateStr) { showErr('Please select a date'); return; }
-  const dt      = new Date(dateStr + 'T00:00:00');
-  const DOW_KEY = ['sun','mon','tue','wed','thu','fri','sat'];
-  const dayKey  = DOW_KEY[dt.getDay()];
+  const checked = Array.from(document.querySelectorAll('#lday-classes input[type=checkbox]:checked:not(:disabled)'))
+                       .map(cb => cb.value).filter(Boolean);
+  if (!checked.length) { showErr('Tick at least one class to log'); return; }
+  const existing = new Set(logData.map(e => `${e.date}|${(e['class']||'').toLowerCase().trim()}`));
+  const newEntries = checked
+    .filter(name => !existing.has(`${dateStr}|${name.toLowerCase().trim()}`))
+    .map(name => ({ date: dateStr, 'class': name, notes: '' }));
+  if (!newEntries.length) { closeOverlay('ov-log-day'); showOk('Already logged'); return; }
+  const strip = ({ _idx, _src, ...o }) => o;
+  const all = [...logData.map(strip), ...newEntries];
+  all.sort((a, b) => (b.date||'').localeCompare(a.date||''));
+  logData = all.map((o, i) => ({ ...o, _idx: i }));
+  persist();
   closeOverlay('ov-log-day');
-  logDay(dateStr, dayKey);
+  render();
   renderLog();
+  showOk(`Logged ${newEntries.length} class${newEntries.length !== 1 ? 'es' : ''}`);
 }
 
 function openLogEdit(idx) {
