@@ -62,7 +62,9 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .class-desc  { flex: 1.2; font-size: 12px; color: #777; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .class-instr { font-size: 12px; color: #3a6a9b; width: 110px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .class-type  { font-size: 12px; color: #5a7a5a; width: 90px;  flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.src-icon   { font-size: 11px; opacity: .55; }
+.src-pill       { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 8px; flex-shrink: 0; letter-spacing: .03em; white-space: nowrap; }
+.src-pill-drive { background: #e8f0fe; color: #1a5cb8; border: 1px solid #c5d8fb; }
+.src-pill-link  { background: #fff3e0; color: #b45309; border: 1px solid #fcd9aa; }
 .class-dur  { font-size: 12px; color: #555; width: 46px; text-align: right; flex-shrink: 0; }
 .class-tags { display: none; }
 .tag          { font-size: 11px; padding: 1px 5px; border-radius: 3px; background: #e0e0e0; color: #444; white-space: nowrap; }
@@ -474,7 +476,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.58'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.59'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -1122,9 +1124,12 @@ function renderCat(cat, items, lastDone, classCounts) {
     const ld    = lastDone[c.name];
     const days  = ld ? Math.floor((Date.now() - new Date(ld)) / 86400000) : null;
     const count = classCounts[c.name] || 0;
-    const icon  = c._src === 'link' ? ' <span class="src-icon" title="Online">🔗</span>' : '';
+    const srcPill = c._src === 'link'
+      ? '<span class="src-pill src-pill-link"  title="Online link">Link</span>'
+      : '<span class="src-pill src-pill-drive" title="Google Drive file">Drive</span>';
     return `<div class="class-row">
-      <span class="class-name">${esc(c.name)}${icon}</span>
+      <span class="class-name">${esc(c.name)}</span>
+      ${srcPill}
       <span class="class-desc">${esc(c.description || '')}</span>
       <span class="class-type">${esc(c.classType || '')}</span>
       <span class="class-instr">${esc(c.instructor || '')}</span>
@@ -1145,6 +1150,7 @@ function renderCat(cat, items, lastDone, classCounts) {
   }).join('');
   const colHead = `<div class="col-head">
     <span class="ch-name">Class</span>
+    <span style="width:42px;flex-shrink:0"></span>
     <span class="ch-desc">Description</span>
     <span class="ch-type">Type</span>
     <span class="ch-instr">Instructor</span>
