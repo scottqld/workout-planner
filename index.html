@@ -366,21 +366,23 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <!-- ── Sync modal ── -->
 <div class="overlay" id="ov-sync">
   <div class="modal">
-    <h3>☁ Cross-device Sync</h3>
-    <p style="font-size:13px;color:#555;margin-bottom:16px">
-      Syncs your workouts, schedule, and history across all devices automatically.
+    <h3>☁ Sync</h3>
+    <p style="font-size:13px;color:#555;margin-bottom:20px">
+      Your workouts, schedule, and history sync automatically across all devices.
     </p>
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-      <button class="btn btn-ghost" id="sync-drive-connect-btn" style="font-size:12px;padding:6px 12px" onclick="connectGoogleDrive()">Connect Google Drive</button>
-      <span id="sync-drive-status" style="font-size:12px;color:#888"></span>
+    <div style="display:flex;align-items:center;gap:12px;padding:12px;background:#f6faf6;border-radius:10px;margin-bottom:10px">
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600;color:#2e6b30;margin-bottom:2px">Google Drive</div>
+        <span id="sync-drive-status" style="font-size:12px;color:#888">Not connected</span>
+      </div>
+      <button class="btn btn-ghost" id="sync-drive-connect-btn" style="font-size:12px;padding:6px 12px;flex-shrink:0" onclick="connectGoogleDrive()">Connect</button>
     </div>
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
-      <button class="btn btn-ghost" id="sync-auto-link-btn" style="font-size:12px;padding:6px 12px" onclick="autoLinkDriveClasses()">⚡ Auto-link all classes from Drive</button>
-      <span id="sync-auto-link-status" style="font-size:12px;color:#888"></span>
-    </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-      <button class="btn btn-ghost" onclick="syncPull(true)">Pull from cloud</button>
-      <button class="btn btn-ghost" onclick="syncPush(true)">Push to cloud</button>
+    <div style="display:flex;align-items:center;gap:12px;padding:12px;background:#f6faf6;border-radius:10px;margin-bottom:16px">
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600;color:#2e6b30;margin-bottom:2px">Auto-link classes</div>
+        <span id="sync-auto-link-status" style="font-size:12px;color:#888">Links Drive files to scheduled classes</span>
+      </div>
+      <button class="btn btn-ghost" id="sync-auto-link-btn" style="font-size:12px;padding:6px 12px;flex-shrink:0" onclick="autoLinkDriveClasses()">⚡ Link</button>
     </div>
     <div id="sync-msg" style="font-size:13px;min-height:18px;color:#2e6b30"></div>
     <div class="modal-actions" style="margin-top:16px">
@@ -464,7 +466,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.85'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.87'; // auto-bumped by pre-commit hook
 const SEED_LOG_VER = '1.78'; // bump to force-reset log from SEED_LOG_TEXT
 
 // ── Constants ──────────────────────────────────────────────────────────────
