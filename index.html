@@ -396,6 +396,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
       <button class="btn btn-primary" onclick="saveSyncSettings()">Save &amp; Sync Now</button>
       <button class="btn btn-ghost" onclick="syncPull(true)">Pull from cloud</button>
       <button class="btn btn-ghost" onclick="syncPush(true)">Push to cloud</button>
+      <button class="btn btn-ghost" onclick="copyConfigLink()" title="Copy a link that pre-fills these settings in any browser">📋 Copy config link</button>
     </div>
     <div id="sync-msg" style="font-size:13px;min-height:18px;color:#2e6b30"></div>
     <div class="modal-actions" style="margin-top:16px">
@@ -480,7 +481,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.66'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.67'; // auto-bumped by pre-commit hook
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CAT_ORDER = ['activate','ba','csc','dumbbell','f&f','JK','hiit','circuit','grit','pump','strength','tpr'];
@@ -530,6 +531,7 @@ function startApp() {
   document.getElementById('screen-app').style.display = '';
   document.getElementById('app-ver').textContent = APP_VERSION;
   loadSyncConfig();
+  applyConfigFromHash();   // import settings from #sync= URL if present
   loadFromStorage();
   removeRetroScheduleEntries();
   commitScheduleToLog();
@@ -923,6 +925,46 @@ function clearSyncConfig() {
   document.getElementById('sync-google-client-id').value = '';
   document.getElementById('sync-msg').textContent = 'Sync removed.';
   document.getElementById('sync-msg').style.color = '#888';
+}
+
+// Copy a link that pre-fills all sync settings in any browser.
+// Anyone with the link can configure the same sync endpoint, so treat it like a password.
+function copyConfigLink() {
+  if (!syncUrl && !syncKey && !googleClientId) {
+    const msg = document.getElementById('sync-msg');
+    msg.textContent = 'No settings saved yet — fill in and save first.';
+    msg.style.color = '#c0392b';
+    return;
+  }
+  const payload = btoa(JSON.stringify({ url: syncUrl, key: syncKey, googleClientId }));
+  const link    = `${location.origin}${location.pathname}#sync=${payload}`;
+  navigator.clipboard.writeText(link).then(() => {
+    const msg = document.getElementById('sync-msg');
+    msg.textContent = '✓ Config link copied — open it in any browser to auto-fill these settings.';
+    msg.style.color = '#2e6b30';
+  }).catch(() => {
+    // Clipboard blocked — show the link so the user can copy manually
+    const msg = document.getElementById('sync-msg');
+    msg.innerHTML = 'Copy this link: <input style="width:100%;font-size:11px;margin-top:4px;padding:3px 5px;border:1px solid #cdd;border-radius:4px" value="' + link.replace(/"/g,'&quot;') + '" onclick="this.select()" readonly>';
+    msg.style.color = '#555';
+  });
+}
+
+// On startup, check for #sync=<base64> in the URL.
+// If found, decode and save the settings so the browser is instantly configured.
+function applyConfigFromHash() {
+  const hash = location.hash;
+  if (!hash.startsWith('#sync=')) return;
+  try {
+    const cfg = JSON.parse(atob(hash.slice(6)));
+    if (cfg.url)            syncUrl        = cfg.url.trim().replace(/\/$/, '');
+    if (cfg.key)            syncKey        = cfg.key.trim();
+    if (cfg.googleClientId) googleClientId = cfg.googleClientId.trim();
+    localStorage.setItem('wp-sync', JSON.stringify({ url: syncUrl, key: syncKey, googleClientId }));
+    updateSyncDot();
+    // Remove the hash so the key isn't sitting in the address bar
+    history.replaceState(null, '', location.pathname + location.search);
+  } catch (e) { /* malformed hash — ignore */ }
 }
 
 // One-time repair: remove schedule-generated entries that were retroactively
