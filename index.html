@@ -520,7 +520,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.113'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.114'; // auto-bumped by pre-commit hook
 const SEED_LOG_VER = '1.78'; // bump to force-reset log from SEED_LOG_TEXT
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -2371,9 +2371,12 @@ function renderSchedule() {
     ? `<div style="text-align:center;font-size:12px;color:#888;margin-bottom:10px">${summaryParts.join(' · ')}</div>`
     : '';
 
-  const autoGenBtn = `<div style="text-align:center;margin-bottom:8px">
+  const autoGenBtn = `<div style="text-align:center;margin-bottom:8px;display:flex;flex-wrap:wrap;justify-content:center;gap:6px">
     <button class="btn btn-ghost" style="font-size:12px;padding:4px 14px;color:#2e6b30;border-color:#b2d8b2" onclick="autoGenWeek()">
-      🗓 Generate week from last week
+      🗓 Generate from last week
+    </button>
+    <button class="btn btn-ghost" style="font-size:12px;padding:4px 14px;color:#2e6b30;border-color:#b2d8b2" onclick="autoFillCategories()">
+      ⚡ Auto-fill classes
     </button>
   </div>`;
 
@@ -2718,6 +2721,65 @@ function autoGenWeek() {
   persistOverrides();
   renderSchedule();
   showOk('Both weeks set to categories — tap a pill to pick a class');
+}
+
+// Auto-fill @cat: placeholders with the next class in each category's cycle.
+// Classes within a category are cycled alphabetically. The starting point is
+// the most recently logged class for that category. Multiple future slots of
+// the same category each advance one step further through the sequence.
+function autoFillCategories() {
+  const classMap = buildClassMap();
+  const isoDate  = dt => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+  const todayMid = new Date(); todayMid.setHours(0,0,0,0);
+
+  // Build alphabetically-sorted class pool per category
+  const catPool = {};
+  for (const c of classMap.values()) {
+    if (!c.category || !c.name) continue;
+    (catPool[c.category] = catPool[c.category] || []).push(c.name);
+  }
+  for (const cat in catPool) catPool[cat].sort((a, b) => a.localeCompare(b));
+
+  // Seed last-done tracker from log history (process chronologically so latest wins)
+  const lastDoneForCat = {};
+  const sortedLog = [...logData].filter(e => e.date && e['class']).sort((a, b) => a.date.localeCompare(b.date));
+  for (const e of sortedLog) {
+    const c = classMap.get((e['class']||'').toLowerCase().trim());
+    if (c?.category) lastDoneForCat[c.category] = e['class'];
+  }
+
+  // Walk both weeks in date order, replacing @cat: slots
+  let filled = 0;
+  for (const wkOffset of [0, 1]) {
+    const { map: dm } = weekDates(wkOffset);
+    for (const day of DAYS) {
+      const dt = dm[day];
+      if (dt < todayMid) continue;            // never touch past days
+      const dateStr = isoDate(dt);
+      const items = dateOverrides.hasOwnProperty(dateStr)
+        ? [...dateOverrides[dateStr]]
+        : [...(schedule[day] || [])];
+      let changed = false;
+      for (let i = 0; i < items.length; i++) {
+        if (!(items[i]||'').startsWith('@cat:')) continue;
+        const cat  = items[i].slice(5);
+        const pool = catPool[cat];
+        if (!pool?.length) continue;
+        const lastIdx = pool.findIndex(n => n === lastDoneForCat[cat]);
+        const chosen  = pool[(lastIdx + 1) % pool.length];
+        items[i] = chosen;
+        lastDoneForCat[cat] = chosen;         // advance so next slot of same cat gets the next one
+        changed = true;
+        filled++;
+      }
+      if (changed) dateOverrides[dateStr] = items;
+    }
+  }
+
+  if (!filled) { showOk('No category slots to fill'); return; }
+  persistOverrides();
+  renderSchedule();
+  showOk(`Auto-filled ${filled} class${filled !== 1 ? 'es' : ''}`);
 }
 
 // ── Category slot picker ──────────────────────────────────────────────────
