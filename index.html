@@ -155,6 +155,8 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 .dur-short   { font-size: 10px; font-weight: 600; padding: 1px 5px; border-radius: 8px; background: #e8f3fd; color: #1a6fa8; flex-shrink: 0; letter-spacing: .3px; }
 .dur-long    { font-size: 10px; font-weight: 600; padding: 1px 5px; border-radius: 8px; background: #fdf0e8; color: #b56018; flex-shrink: 0; letter-spacing: .3px; }
 @media (max-width: 600px) { .dur-short, .dur-long { display: none; } }
+.chip-field-btn { font-size: 11px; padding: 2px 9px; border-radius: 10px; border: 1px solid #ddd; background: #f5f5f5; color: #bbb; cursor: pointer; }
+.chip-field-btn.on { border-color: #2e6b30; background: #eaf5ea; color: #2e6b30; }
 .last-badge  { font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 8px; white-space: nowrap; flex-shrink: 0; }
 .last-today  { background: #2e6b30; color: #fff; }
 .last-recent { background: #d4edda; color: #1e5a20; }
@@ -520,7 +522,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.115'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.116'; // auto-bumped by pre-commit hook
 const SEED_LOG_VER = '1.78'; // bump to force-reset log from SEED_LOG_TEXT
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -547,6 +549,7 @@ let daySuggestIdx  = 0;
 let daySuggestPool = [];
 let schedWeekOffset = 0;
 let dayCatSelected = '';
+let schedChipFields = { dur: true, count: true, link: true };
 
 // ── Sync state ─────────────────────────────────────────────────────────────
 const DEFAULT_SYNC_URL   = 'https://workout-planner-dbd96-default-rtdb.firebaseio.com';
@@ -775,6 +778,7 @@ function loadFromStorage() {
       localStorage.setItem('wp-schedule', JSON.stringify(schedule));
     }
     try { dateOverrides = JSON.parse(localStorage.getItem('wp-overrides') || '{}'); } catch { dateOverrides = {}; }
+    try { const cf = JSON.parse(localStorage.getItem('wp-chip-fields') || 'null'); if (cf) schedChipFields = { ...schedChipFields, ...cf }; } catch {}
     return;
   }
   const raw = k => { try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch { return []; } };
@@ -805,6 +809,7 @@ function loadFromStorage() {
     localStorage.setItem('wp-schedule', JSON.stringify(schedule));
   }
   try { dateOverrides = JSON.parse(localStorage.getItem('wp-overrides') || '{}'); } catch { dateOverrides = {}; }
+  try { const cf = JSON.parse(localStorage.getItem('wp-chip-fields') || 'null'); if (cf) schedChipFields = { ...schedChipFields, ...cf }; } catch {}
 }
 
 function persist() {
@@ -2418,18 +2423,17 @@ function renderSchedule() {
       if (classSlots.length) {
         classChipsHtml = classSlots.map(({ name, idx }) => {
           const c    = classMap.get((name||'').toLowerCase().trim());
-          const dur  = c ? `<span class="sched-chip-dur">${fmtDur(c.duration)}</span>` : '';
-          const db   = c ? durBadge(c.duration) : '';
+          const dur  = (c && schedChipFields.dur)   ? `<span class="sched-chip-dur">${fmtDur(c.duration)}</span>` : '';
           const cnt  = classCounts[(name||'').trim().toLowerCase()] || 0;
-          const pill = cnt ? `<span class="count-pill">${cnt}×</span>` : '';
-          const link = schedLinkBtn(c, name);
+          const pill = (cnt && schedChipFields.count) ? `<span class="count-pill">${cnt}×</span>` : '';
+          const link = schedChipFields.link ? schedLinkBtn(c, name) : '';
           if (isDone) {
             return `<span class="sched-chip">
-              <span class="sched-chip-name">${esc(name)}</span>${dur}${db}${pill}${link}
+              <span class="sched-chip-name">${esc(name)}</span>${dur}${pill}${link}
             </span>`;
           }
           return `<span class="sched-chip" onclick="if(!event.target.closest('button,a'))openDayEdit('${dayKey}',false,'${dateStr}')">
-            <span class="sched-chip-name">${esc(name)}</span>${dur}${db}${pill}${link}
+            <span class="sched-chip-name">${esc(name)}</span>${dur}${pill}${link}
             <button type="button" class="sched-chip-del" onclick="tiDeleteDateEntry('${dateStr}','${dayKey}',${idx})">×</button>
           </span>`;
         }).join('');
@@ -2484,7 +2488,18 @@ function renderSchedule() {
       </div>`
     : '';
 
-  document.getElementById('schedule-out').innerHTML = streakHtml + summaryLine + autoGenBtn + cardsHtml;
+  const chipFieldRow = (() => {
+    const defs = [['dur','time'],['count','count'],['link','▶ link']];
+    const btns = defs.map(([f, label]) => {
+      const on = schedChipFields[f];
+      return `<button onclick="toggleChipField('${f}')" class="chip-field-btn${on ? ' on' : ''}">${label}</button>`;
+    }).join('');
+    return `<div style="text-align:center;margin-bottom:10px;display:flex;justify-content:center;align-items:center;gap:6px">
+      <span style="font-size:11px;color:#bbb">chips:</span>${btns}
+    </div>`;
+  })();
+
+  document.getElementById('schedule-out').innerHTML = streakHtml + summaryLine + autoGenBtn + chipFieldRow + cardsHtml;
 }
 
 // ── Inline timetable editing ───────────────────────────────────────────────
@@ -2877,6 +2892,12 @@ function restartFromToday() {
   persistOverrides();
   renderSchedule();
   showOk(`Schedule restarted — ${filled} class${filled !== 1 ? 'es' : ''} filled from today`);
+}
+
+function toggleChipField(field) {
+  schedChipFields[field] = !schedChipFields[field];
+  localStorage.setItem('wp-chip-fields', JSON.stringify(schedChipFields));
+  renderSchedule();
 }
 
 // ── Category slot picker ──────────────────────────────────────────────────
