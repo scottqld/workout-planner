@@ -570,7 +570,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.119'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.120'; // auto-bumped by pre-commit hook
 const SEED_LOG_VER = '1.78'; // bump to force-reset log from SEED_LOG_TEXT
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -2435,9 +2435,6 @@ function renderSchedule() {
     <button class="btn btn-ghost" style="font-size:12px;padding:4px 14px;color:#2e6b30;border-color:#b2d8b2" onclick="autoFillCategories()">
       ⚡ Auto-fill classes
     </button>
-    <button class="btn btn-ghost" style="font-size:12px;padding:4px 14px;color:#a05000;border-color:#e0c090" onclick="restartFromToday()">
-      ↩ Restart from today
-    </button>
     <button class="btn btn-ghost" style="font-size:12px;padding:4px 14px;color:#555;border-color:#ccc" onclick="openScheduleSaves()">
       💾 Saved${savedSchedules.length ? ` (${savedSchedules.length})` : ''}
     </button>
@@ -2795,9 +2792,14 @@ function _genFromBaseCore() {
 }
 
 function autoGenWeek() {
-  checkBeforeScheduleAction(_doAutoGenWeek, 'Generate from base');
+  checkBeforeScheduleAction(_doAutoGenWeek, 'Generate');
 }
 function _doAutoGenWeek() {
+  // Clear all future overrides first (including beyond the visible window)
+  const todayStr = new Date().toISOString().slice(0, 10);
+  for (const dateStr of Object.keys(dateOverrides)) {
+    if (dateStr >= todayStr) delete dateOverrides[dateStr];
+  }
   const filled = _genFromBaseCore();
   persistOverrides();
   renderSchedule();
@@ -2866,23 +2868,6 @@ function _doAutoFillCategories() {
   showOk(`Auto-filled ${filled} class${filled !== 1 ? 'es' : ''}`);
 }
 
-// Clear today-onwards overrides, re-seed categories from the weekly schedule,
-// then auto-fill with the next sequential class per category — resuming the
-// rotation from wherever the log left off before the injury break.
-function restartFromToday() {
-  checkBeforeScheduleAction(_doRestartFromToday, 'Restart from today');
-}
-function _doRestartFromToday() {
-  if (!confirm('Restart schedule from today?\n\nAll timetable entries from today onwards will be cleared and refilled from the base schedule.')) return;
-  const todayStr = new Date().toISOString().slice(0, 10);
-  for (const dateStr of Object.keys(dateOverrides)) {
-    if (dateStr >= todayStr) delete dateOverrides[dateStr];
-  }
-  const filled = _genFromBaseCore();
-  persistOverrides();
-  renderSchedule();
-  showOk(`Schedule restarted — ${filled} class${filled !== 1 ? 'es' : ''} filled from today`);
-}
 
 function toggleChipField(field) {
   schedChipFields[field] = !schedChipFields[field];
