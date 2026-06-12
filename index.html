@@ -570,7 +570,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.118'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.119'; // auto-bumped by pre-commit hook
 const SEED_LOG_VER = '1.78'; // bump to force-reset log from SEED_LOG_TEXT
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -2430,7 +2430,7 @@ function renderSchedule() {
 
   const autoGenBtn = `<div style="text-align:center;margin-bottom:8px;display:flex;flex-wrap:wrap;justify-content:center;gap:6px">
     <button class="btn btn-ghost" style="font-size:12px;padding:4px 14px;color:#2e6b30;border-color:#b2d8b2" onclick="autoGenWeek()">
-      🗓 Generate from last week
+      🗓 Generate
     </button>
     <button class="btn btn-ghost" style="font-size:12px;padding:4px 14px;color:#2e6b30;border-color:#b2d8b2" onclick="autoFillCategories()">
       ⚡ Auto-fill classes
@@ -2736,70 +2736,72 @@ function tiDeleteDateEntry(dateStr, day, idx) {
   renderSchedule();
 }
 
-// Generate both timetable weeks as category-only placeholders.
-// Source priority: (1) previous week's log for each weekday,
-// (2) categories of existing class names already on that day.
-// Any day with existing class names is ALWAYS overwritten — clearing
-// specific classes back to category placeholders.
-function autoGenWeek() {
-  checkBeforeScheduleAction(_doAutoGenWeek, 'Generate week from last week');
-}
-function _doAutoGenWeek() {
+// Core generate logic: reads base schedule → resolves each entry to the next
+// sequential class in its category (using log history) → writes dateOverrides.
+// Returns the number of class slots filled.
+function _genFromBaseCore() {
+  const classMap = buildClassMap();
   const isoDate  = dt => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
   const todayMid = new Date(); todayMid.setHours(0,0,0,0);
-  const classMap = buildClassMap();
 
-  // Build class-name → category lookup (lowercase key)
   const nameToCat = new Map();
   for (const [k, c] of classMap) { if (c.category) nameToCat.set(k, c.category); }
 
-  // Log entries grouped by date
-  const logByDate = {};
-  for (const e of logData) {
-    if (e.date && e['class']) (logByDate[e.date] = logByDate[e.date] || []).push(e['class']);
+  const catPool = {};
+  for (const c of classMap.values()) {
+    if (!c.category || !c.name) continue;
+    (catPool[c.category] = catPool[c.category] || []).push(c.name);
   }
+  for (const cat in catPool) catPool[cat].sort((a, b) => a.localeCompare(b));
 
-  // Process both displayed weeks
+  // Seed from log: find the last class logged per category
+  const lastDoneForCat = {};
+  [...logData].filter(e => e.date && e['class'])
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .forEach(e => {
+      const c = classMap.get((e['class']||'').toLowerCase().trim());
+      if (c?.category) lastDoneForCat[c.category] = e['class'];
+    });
+
+  let filled = 0;
   for (const wkOffset of [0, 1]) {
-    const { map: dm }   = weekDates(wkOffset);
-    const { map: prev } = weekDates(wkOffset - 1);
-
+    const { map: dm } = weekDates(wkOffset);
     for (const day of DAYS) {
       const dt = dm[day];
-      if (dt < todayMid) continue;                      // never rewrite past days
-      const newDate    = isoDate(dt);
-      const prevDate   = isoDate(prev[day]);
+      if (dt < todayMid) continue;
+      const dateStr    = isoDate(dt);
+      const baseItems  = schedule[day] || [];
+      if (!baseItems.length) { dateOverrides[dateStr] = []; continue; }
 
-      // 1. Categories from the equivalent day in the previous week's log
-      const cats = [];
-      for (const name of (logByDate[prevDate] || [])) {
-        const cat = nameToCat.get(name.toLowerCase().trim());
-        if (cat && !cats.includes(cat)) cats.push(cat);
+      const newItems = [];
+      for (const name of baseItems) {
+        // Resolve entry to a category
+        const cat = name.startsWith('@cat:')
+          ? name.slice(5)
+          : nameToCat.get(name.toLowerCase().trim());
+        if (!cat || !catPool[cat]?.length) { newItems.push(name); continue; }
+        // Pick next class in cycle
+        const pool    = catPool[cat];
+        const lastIdx = pool.findIndex(n => n === lastDoneForCat[cat]);
+        const chosen  = pool[(lastIdx + 1) % pool.length];
+        newItems.push(chosen);
+        lastDoneForCat[cat] = chosen;  // advance for next slot of same cat
+        filled++;
       }
-
-      // 2. Fallback: extract categories from whatever is already on this day
-      if (!cats.length) {
-        const existing = dateOverrides.hasOwnProperty(newDate)
-          ? dateOverrides[newDate]
-          : (schedule[day] || []);
-        for (const name of existing) {
-          if (name.startsWith('@cat:')) {
-            const c = name.slice(5); if (!cats.includes(c)) cats.push(c);
-          } else {
-            const cat = nameToCat.get(name.toLowerCase().trim());
-            if (cat && !cats.includes(cat)) cats.push(cat);
-          }
-        }
-      }
-
-      // Always overwrite: write @cat: placeholders, or clear to rest if no cats found
-      dateOverrides[newDate] = cats.map(c => `@cat:${c}`);
+      dateOverrides[dateStr] = newItems;
     }
   }
+  return filled;
+}
 
+function autoGenWeek() {
+  checkBeforeScheduleAction(_doAutoGenWeek, 'Generate from base');
+}
+function _doAutoGenWeek() {
+  const filled = _genFromBaseCore();
   persistOverrides();
   renderSchedule();
-  showOk('Both weeks set to categories — tap a pill to pick a class');
+  showOk(`Generated ${filled} class${filled !== 1 ? 'es' : ''} from base schedule`);
 }
 
 // Auto-fill @cat: placeholders with the next class in each category's cycle.
@@ -2871,91 +2873,12 @@ function restartFromToday() {
   checkBeforeScheduleAction(_doRestartFromToday, 'Restart from today');
 }
 function _doRestartFromToday() {
-  if (!confirm('Restart schedule from today?\n\nAll timetable entries from today onwards will be cleared and refilled with your next scheduled classes.')) return;
-
-  const classMap = buildClassMap();
-  const isoDate  = dt => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
-  const todayMid = new Date(); todayMid.setHours(0,0,0,0);
-  const todayStr = isoDate(todayMid);
-
-  // 1. Clear all dateOverrides from today onwards
+  if (!confirm('Restart schedule from today?\n\nAll timetable entries from today onwards will be cleared and refilled from the base schedule.')) return;
+  const todayStr = new Date().toISOString().slice(0, 10);
   for (const dateStr of Object.keys(dateOverrides)) {
     if (dateStr >= todayStr) delete dateOverrides[dateStr];
   }
-
-  // 2. Re-seed category placeholders for today + both weeks (same logic as autoGenWeek)
-  const nameToCat = new Map();
-  for (const [k, c] of classMap) { if (c.category) nameToCat.set(k, c.category); }
-  const logByDate = {};
-  for (const e of logData) {
-    if (e.date && e['class']) (logByDate[e.date] = logByDate[e.date] || []).push(e['class']);
-  }
-  for (const wkOffset of [0, 1]) {
-    const { map: dm }   = weekDates(wkOffset);
-    const { map: prev } = weekDates(wkOffset - 1);
-    for (const day of DAYS) {
-      const dt = dm[day];
-      if (dt < todayMid) continue;
-      const newDate  = isoDate(dt);
-      const prevDate = isoDate(prev[day]);
-      const cats = [];
-      for (const name of (logByDate[prevDate] || [])) {
-        const cat = nameToCat.get(name.toLowerCase().trim());
-        if (cat && !cats.includes(cat)) cats.push(cat);
-      }
-      if (!cats.length) {
-        for (const name of (schedule[day] || [])) {
-          if (name.startsWith('@cat:')) {
-            const c = name.slice(5); if (!cats.includes(c)) cats.push(c);
-          } else {
-            const cat = nameToCat.get(name.toLowerCase().trim());
-            if (cat && !cats.includes(cat)) cats.push(cat);
-          }
-        }
-      }
-      if (cats.length) dateOverrides[newDate] = cats.map(c => `@cat:${c}`);
-    }
-  }
-
-  // 3. Auto-fill with next sequential class per category (same logic as autoFillCategories)
-  const catPool = {};
-  for (const c of classMap.values()) {
-    if (!c.category || !c.name) continue;
-    (catPool[c.category] = catPool[c.category] || []).push(c.name);
-  }
-  for (const cat in catPool) catPool[cat].sort((a, b) => a.localeCompare(b));
-  const lastDoneForCat = {};
-  [...logData].filter(e => e.date && e['class'])
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .forEach(e => {
-      const c = classMap.get((e['class']||'').toLowerCase().trim());
-      if (c?.category) lastDoneForCat[c.category] = e['class'];
-    });
-  let filled = 0;
-  for (const wkOffset of [0, 1]) {
-    const { map: dm } = weekDates(wkOffset);
-    for (const day of DAYS) {
-      const dt = dm[day];
-      if (dt < todayMid) continue;
-      const dateStr = isoDate(dt);
-      const items = [...(dateOverrides[dateStr] || [])];
-      let changed = false;
-      for (let i = 0; i < items.length; i++) {
-        if (!(items[i]||'').startsWith('@cat:')) continue;
-        const cat  = items[i].slice(5);
-        const pool = catPool[cat];
-        if (!pool?.length) continue;
-        const lastIdx = pool.findIndex(n => n === lastDoneForCat[cat]);
-        const chosen  = pool[(lastIdx + 1) % pool.length];
-        items[i] = chosen;
-        lastDoneForCat[cat] = chosen;
-        changed = true;
-        filled++;
-      }
-      if (changed) dateOverrides[dateStr] = items;
-    }
-  }
-
+  const filled = _genFromBaseCore();
   persistOverrides();
   renderSchedule();
   showOk(`Schedule restarted — ${filled} class${filled !== 1 ? 'es' : ''} filled from today`);
