@@ -516,6 +516,25 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
   </div>
 </div>
 
+<!-- ── Base schedule editor ── -->
+<div class="overlay" id="ov-base-schedule">
+  <div class="modal" style="max-width:440px">
+    <div style="display:flex;align-items:center;margin-bottom:6px">
+      <h3 style="margin:0;flex:1">Base weekly schedule</h3>
+      <button onclick="closeOverlay('ov-base-schedule')" style="background:none;border:none;font-size:20px;color:#aaa;cursor:pointer;line-height:1;padding:0 2px">&times;</button>
+    </div>
+    <p style="font-size:12px;color:#999;margin-bottom:12px;line-height:1.5">Your weekly template — used when no specific overrides exist for a day. Add class names or <code>@cat:name</code> category slots.</p>
+    <button class="btn btn-ghost" style="width:100%;margin-bottom:16px;font-size:12px;color:#2e6b30;border-color:#b2d8b2" onclick="loadCurrentWeekAsBase()">
+      📋 Set from this week's timetable
+    </button>
+    <datalist id="base-sched-datalist"></datalist>
+    <div id="base-sched-rows" style="max-height:420px;overflow-y:auto"></div>
+    <div class="modal-actions" style="margin-top:14px">
+      <button class="btn btn-ghost" onclick="closeOverlay('ov-base-schedule')">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Schedule saves modal ── -->
 <div class="overlay" id="ov-schedule-saves">
   <div class="modal" style="max-width:400px">
@@ -551,7 +570,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.117'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.118'; // auto-bumped by pre-commit hook
 const SEED_LOG_VER = '1.78'; // bump to force-reset log from SEED_LOG_TEXT
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -2422,6 +2441,9 @@ function renderSchedule() {
     <button class="btn btn-ghost" style="font-size:12px;padding:4px 14px;color:#555;border-color:#ccc" onclick="openScheduleSaves()">
       💾 Saved${savedSchedules.length ? ` (${savedSchedules.length})` : ''}
     </button>
+    <button class="btn btn-ghost" style="font-size:12px;padding:4px 14px;color:#555;border-color:#ccc" onclick="openBaseSchedule()">
+      📅 Base
+    </button>
   </div>`;
 
   // Class session counts (for chips)
@@ -3046,6 +3068,87 @@ function deleteSavedSchedule(id) {
   renderSchedule();
 }
 
+// ── Base schedule editor ───────────────────────────────────────────────────
+function openBaseSchedule() {
+  const cm = buildClassMap();
+  document.getElementById('base-sched-datalist').innerHTML =
+    [...cm.keys()].sort().map(n => `<option value="${esc(n)}">`).join('');
+  _renderBaseSchedRows();
+  openOverlay('ov-base-schedule');
+}
+
+function _renderBaseSchedRows() {
+  document.getElementById('base-sched-rows').innerHTML = DAYS.map(day => {
+    const items = schedule[day] || [];
+    const chips = items.map((name, idx) => {
+      const label = name.startsWith('@cat:')
+        ? `<em style="opacity:.65;font-style:normal">${esc(name.slice(5))}</em>`
+        : esc(name);
+      return `<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 5px 2px 8px;border-radius:12px;border:1px solid #d4e8d4;background:#f4f9f4;font-size:12px">
+        ${label}
+        <button type="button" onclick="baseSchedRemove('${day}',${idx})" style="background:none;border:none;color:#c00;font-size:13px;padding:0 1px;cursor:pointer;line-height:1;opacity:.6">×</button>
+      </span>`;
+    }).join('');
+    return `<div style="margin-bottom:14px">
+      <div style="font-size:12px;font-weight:600;color:#2e6b30;margin-bottom:5px">${DAY_LABELS[day]}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">
+        ${chips}
+        <button type="button" class="sched-cat-add-btn" onclick="baseSchedShowAdd('${day}')">+ add</button>
+      </div>
+      <div id="base-add-${day}" style="display:none;margin-top:6px">
+        <div style="display:flex;gap:6px">
+          <input id="base-inp-${day}" list="base-sched-datalist" class="search"
+            style="flex:1;font-size:13px" placeholder="Class name or @cat:name…"
+            onkeydown="if(event.key==='Enter')baseSchedSaveAdd('${day}');else if(event.key==='Escape')baseSchedCancelAdd('${day}')">
+          <button class="btn btn-primary" style="font-size:12px;padding:4px 10px;flex-shrink:0" onclick="baseSchedSaveAdd('${day}')">Add</button>
+          <button class="btn btn-ghost"   style="font-size:12px;padding:4px 10px;flex-shrink:0" onclick="baseSchedCancelAdd('${day}')">✕</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function baseSchedRemove(day, idx) {
+  if (!schedule[day]) return;
+  schedule[day].splice(idx, 1);
+  persistSchedule();
+  _renderBaseSchedRows();
+}
+
+function baseSchedShowAdd(day) {
+  const row = document.getElementById(`base-add-${day}`);
+  if (row) { row.style.display = ''; document.getElementById(`base-inp-${day}`)?.focus(); }
+}
+
+function baseSchedCancelAdd(day) {
+  const row = document.getElementById(`base-add-${day}`);
+  if (row) { row.style.display = 'none'; const inp = document.getElementById(`base-inp-${day}`); if (inp) inp.value = ''; }
+}
+
+function baseSchedSaveAdd(day) {
+  const inp  = document.getElementById(`base-inp-${day}`);
+  const name = inp?.value.trim();
+  if (!name) return;
+  if (!schedule[day]) schedule[day] = [];
+  schedule[day].push(name);
+  persistSchedule();
+  baseSchedCancelAdd(day);
+  _renderBaseSchedRows();
+}
+
+function loadCurrentWeekAsBase() {
+  if (!confirm('Replace the base weekly schedule with this week\'s timetable entries?')) return;
+  const isoDate = dt => `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+  const { map: dm } = weekDates(0);
+  for (const day of DAYS) {
+    const dateStr = isoDate(dm[day]);
+    schedule[day] = [...(dateOverrides.hasOwnProperty(dateStr) ? dateOverrides[dateStr] : (schedule[day] || []))];
+  }
+  persistSchedule();
+  _renderBaseSchedRows();
+  showOk('Base schedule updated from this week');
+}
+
 // ── Category slot picker ──────────────────────────────────────────────────
 let _catPickState = null;  // { dateStr, dayKey, slotIdx, currentCat }
 
@@ -3633,7 +3736,7 @@ function setAllCats(open) {
 function openOverlay(id)  { document.getElementById(id).classList.add('open'); }
 function closeOverlay(id) { document.getElementById(id).classList.remove('open'); }
 document.addEventListener('click', e => {
-  ['ov-class','ov-import','ov-backup','ov-log','ov-log-day','ov-cat-pick','ov-day-edit','ov-sync','ov-schedule-saves','ov-save-confirm'].forEach(id => {
+  ['ov-class','ov-import','ov-backup','ov-log','ov-log-day','ov-cat-pick','ov-day-edit','ov-sync','ov-schedule-saves','ov-save-confirm','ov-base-schedule'].forEach(id => {
     if (e.target === document.getElementById(id)) closeOverlay(id);
   });
 });
