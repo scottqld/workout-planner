@@ -525,18 +525,11 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
       <h3 style="margin:0;flex:1">Saved</h3>
       <button onclick="closeOverlay('ov-schedule-saves')" style="background:none;border:none;font-size:20px;color:#aaa;cursor:pointer;line-height:1;padding:0 2px">&times;</button>
     </div>
-    <div style="font-size:11px;font-weight:700;color:#888;letter-spacing:.5px;margin-bottom:8px">WEEK TEMPLATES</div>
     <div style="display:flex;gap:8px;margin-bottom:4px">
       <input id="week-save-name" type="text" class="search" placeholder="Name this week…" style="flex:1;font-size:13px">
       <button class="btn btn-primary" style="flex-shrink:0" onclick="saveCurrentWeekNamed()">Save</button>
     </div>
     <p style="font-size:11px;color:#bbb;margin-bottom:14px">Saves Mon–Sun entries. Load applies only to days not yet logged.</p>
-    <div style="font-size:11px;font-weight:700;color:#888;letter-spacing:.5px;margin-bottom:8px">SNAPSHOTS</div>
-    <div style="display:flex;gap:8px;margin-bottom:4px">
-      <input id="sched-save-name" type="text" class="search" placeholder="Name this snapshot…" style="flex:1;font-size:13px">
-      <button class="btn btn-primary" style="flex-shrink:0" onclick="saveScheduleNamed()">Save</button>
-    </div>
-    <p style="font-size:11px;color:#bbb;margin-bottom:14px">Full backup — restores everything.</p>
     <div id="saved-schedules-list" style="max-height:260px;overflow-y:auto"></div>
   </div>
 </div>
@@ -545,7 +538,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <div class="overlay" id="ov-save-confirm">
   <div class="modal" style="max-width:300px">
     <h3 id="save-confirm-title" style="font-size:15px;margin-bottom:6px"></h3>
-    <p style="font-size:13px;color:#666;margin-bottom:18px;line-height:1.5">This will replace your current timetable. Save a snapshot first?</p>
+    <p style="font-size:13px;color:#666;margin-bottom:18px;line-height:1.5">This will replace your current timetable. Save the current week first?</p>
     <div style="display:flex;flex-direction:column;gap:8px">
       <button class="btn btn-primary" onclick="saveConfirmDoSave()">💾 Save first, then continue</button>
       <button class="btn btn-ghost" onclick="saveConfirmSkip()">Continue without saving</button>
@@ -560,7 +553,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.123'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.124'; // auto-bumped by pre-commit hook
 const SEED_LOG_VER = '1.78'; // bump to force-reset log from SEED_LOG_TEXT
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -588,7 +581,6 @@ let daySuggestPool = [];
 let schedWeekOffset = 0;
 let dayCatSelected = '';
 let schedChipFields = { dur: true, count: true, link: true };
-let savedSchedules  = [];
 let savedWeeks      = [];
 let catPickSort     = 'name'; // 'name' | 'count' | 'last'
 let _pendingAction  = null;
@@ -821,7 +813,6 @@ function loadFromStorage() {
     }
     try { dateOverrides  = JSON.parse(localStorage.getItem('wp-overrides')       || '{}');  } catch { dateOverrides = {}; }
     try { const cf = JSON.parse(localStorage.getItem('wp-chip-fields') || 'null'); if (cf) schedChipFields = { ...schedChipFields, ...cf }; } catch {}
-    try { savedSchedules = JSON.parse(localStorage.getItem('wp-saved-schedules') || '[]'); } catch { savedSchedules = []; }
     try { savedWeeks     = JSON.parse(localStorage.getItem('wp-saved-weeks')     || '[]'); } catch { savedWeeks = []; }
     catPickSort = localStorage.getItem('wp-cat-pick-sort') || 'name';
     return;
@@ -2432,7 +2423,7 @@ function renderSchedule() {
       ⚡ Auto-fill classes
     </button>
     <button class="btn btn-ghost" style="font-size:12px;padding:4px 14px;color:#555;border-color:#ccc" onclick="openScheduleSaves()">
-      💾 Saved${(savedSchedules.length + savedWeeks.length) ? ` (${savedSchedules.length + savedWeeks.length})` : ''}
+      💾 Saved${savedWeeks.length ? ` (${savedWeeks.length})` : ''}
     </button>
   </div>`;
 
@@ -2883,12 +2874,9 @@ function checkBeforeScheduleAction(actionFn, title) {
 
 function saveConfirmDoSave() {
   closeOverlay('ov-save-confirm');
-  openScheduleSaves();
-  // After the user saves and closes, the pending action runs via saveScheduleNamed → callback
-  const after = _pendingAction;
+  _pendingAfterSave = _pendingAction;
   _pendingAction = null;
-  document.getElementById('sched-save-name').dataset.afterSave = after ? after.name : '';
-  _pendingAfterSave = after;
+  openScheduleSaves();
 }
 
 function saveConfirmSkip() {
@@ -2902,32 +2890,11 @@ let _pendingAfterSave = null;
 
 function openScheduleSaves() {
   document.getElementById('week-save-name').value = '';
-  document.getElementById('sched-save-name').value = '';
   _renderSavedSchedulesList();
   openOverlay('ov-schedule-saves');
   setTimeout(() => document.getElementById('week-save-name').focus(), 80);
 }
 
-function saveScheduleNamed() {
-  const inp  = document.getElementById('sched-save-name');
-  const name = inp.value.trim();
-  if (!name) { inp.focus(); return; }
-  const entry = {
-    id:       Date.now(),
-    name,
-    savedAt:  new Date().toISOString(),
-    schedule: JSON.parse(JSON.stringify(schedule)),
-    overrides: JSON.parse(JSON.stringify(dateOverrides)),
-  };
-  savedSchedules = [entry, ...savedSchedules].slice(0, 20);
-  localStorage.setItem('wp-saved-schedules', JSON.stringify(savedSchedules));
-  inp.value = '';
-  _renderSavedSchedulesList();
-  showOk(`Saved "${name}"`);
-  renderSchedule(); // refresh count badge
-  // If we were prompted to save before an action, run it now
-  if (_pendingAfterSave) { const fn = _pendingAfterSave; _pendingAfterSave = null; closeOverlay('ov-schedule-saves'); fn(); }
-}
 
 function _renderSavedSchedulesList() {
   const el = document.getElementById('saved-schedules-list');
@@ -2943,35 +2910,11 @@ function _renderSavedSchedulesList() {
     </div>`;
   let html = '';
   for (const w of savedWeeks) {
-    html += row(esc(w.name), fmtDate(w.savedAt) + ' · week', `loadSavedWeek(${w.id})`, `deleteSavedWeek(${w.id})`);
-  }
-  for (const s of savedSchedules) {
-    html += row(esc(s.name), fmtDate(s.savedAt) + ' · snapshot', `loadSavedSchedule(${s.id})`, `deleteSavedSchedule(${s.id})`);
+    html += row(esc(w.name), fmtDate(w.savedAt), `loadSavedWeek(${w.id})`, `deleteSavedWeek(${w.id})`);
   }
   el.innerHTML = html || '<p style="color:#bbb;font-size:13px;padding:8px 0;text-align:center">Nothing saved yet.</p>';
 }
 
-function loadSavedSchedule(id) {
-  const entry = savedSchedules.find(s => s.id === id);
-  if (!entry) return;
-  if (!confirm(`Restore "${entry.name}"?\n\nYour current timetable will be replaced.`)) return;
-  schedule      = entry.schedule;
-  dateOverrides = entry.overrides;
-  persistSchedule();
-  persistOverrides();
-  closeOverlay('ov-schedule-saves');
-  renderSchedule();
-  showOk(`Loaded "${entry.name}"`);
-}
-
-function deleteSavedSchedule(id) {
-  const entry = savedSchedules.find(s => s.id === id);
-  if (!entry || !confirm(`Delete "${entry.name}"?`)) return;
-  savedSchedules = savedSchedules.filter(s => s.id !== id);
-  localStorage.setItem('wp-saved-schedules', JSON.stringify(savedSchedules));
-  _renderSavedSchedulesList();
-  renderSchedule();
-}
 
 function saveCurrentWeekNamed() {
   const inp  = document.getElementById('week-save-name');
@@ -2992,6 +2935,7 @@ function saveCurrentWeekNamed() {
   _renderSavedSchedulesList();
   renderSchedule();
   showOk(`Week saved as "${name}"`);
+  if (_pendingAfterSave) { const fn = _pendingAfterSave; _pendingAfterSave = null; closeOverlay('ov-schedule-saves'); fn(); }
 }
 
 function loadSavedWeek(id) {
