@@ -553,7 +553,7 @@ main { max-width: 940px; margin: 0 auto; padding: 16px; }
 <script>
 // ── PIN ────────────────────────────────────────────────────────────────────
 const APP_PIN = '9344';
-const APP_VERSION = '1.125'; // auto-bumped by pre-commit hook
+const APP_VERSION = '1.126'; // auto-bumped by pre-commit hook
 const SEED_LOG_VER = '1.78'; // bump to force-reset log from SEED_LOG_TEXT
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -2738,14 +2738,32 @@ function _genFromBaseCore() {
   }
   for (const cat in catPool) catPool[cat].sort((a, b) => a.localeCompare(b));
 
-  // Seed from log: find the last class logged per category
+  // Seed from log: use last week's entries; fall back to the most recent week with any entries
+  const mondayOf = dateStr => {
+    const dt = new Date(dateStr + 'T00:00:00');
+    const dow = dt.getDay();
+    dt.setDate(dt.getDate() - (dow === 0 ? 6 : dow - 1));
+    return isoDate(dt);
+  };
+  const { map: lastWeekMap } = weekDates(-1);
+  const lastWeekStart = isoDate(lastWeekMap.mon);
+  const lastWeekEnd   = isoDate(lastWeekMap.sun);
+  let seedEntries = logData.filter(e => e.date && e['class'] && e.date >= lastWeekStart && e.date <= lastWeekEnd);
+  if (!seedEntries.length) {
+    const allEntries = logData.filter(e => e.date && e['class']);
+    if (allEntries.length) {
+      const latestMon = allEntries.map(e => mondayOf(e.date)).sort().at(-1);
+      const latestSunDt = new Date(latestMon + 'T00:00:00');
+      latestSunDt.setDate(latestSunDt.getDate() + 6);
+      const latestSun = isoDate(latestSunDt);
+      seedEntries = allEntries.filter(e => e.date >= latestMon && e.date <= latestSun);
+    }
+  }
   const lastDoneForCat = {};
-  [...logData].filter(e => e.date && e['class'])
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .forEach(e => {
-      const c = classMap.get((e['class']||'').toLowerCase().trim());
-      if (c?.category) lastDoneForCat[c.category] = e['class'];
-    });
+  seedEntries.sort((a, b) => a.date.localeCompare(b.date)).forEach(e => {
+    const c = classMap.get((e['class']||'').toLowerCase().trim());
+    if (c?.category) lastDoneForCat[c.category] = e['class'];
+  });
 
   let filled = 0;
   for (const wkOffset of [0, 1]) {
