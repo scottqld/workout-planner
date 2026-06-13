@@ -17,9 +17,12 @@ self.addEventListener('activate', e => {
 });
 
 // Network-first: always try the network, fall back to cache when offline
+// API and video routes are never cached — always live from the server
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   if (!e.request.url.startsWith(self.location.origin)) return;
+  const url = new URL(e.request.url);
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/videos/')) return;
   e.respondWith(
     fetch(e.request)
       .then(resp => {

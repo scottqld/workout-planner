@@ -1,0 +1,14 @@
+{
+  "name": "workout-planner",
+  "version": "1.0.0",
+  "description": "Workout Planner — NAS backend",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.4.3",
+    "express": "^4.18.2",
+    "multer": "^1.4.5-lts.1"
+  }
+}
